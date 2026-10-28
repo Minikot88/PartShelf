@@ -1,0 +1,15 @@
+.env
+.env.*
+!.env.example
+vendor
+node_modules
+.git
+.codex
+.agents
+.phpunit.cache
+tests
+storage
+bootstrap/cache/*.php
+public/storage
+*.dump
+*.log

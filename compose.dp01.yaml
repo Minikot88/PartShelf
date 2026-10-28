@@ -1,0 +1,41 @@
+# Local test emulator only. No host port is exposed; no cloud resources involved.
+services:
+  prod-api:
+    image: partshelf-api:dp01
+    environment:
+      APP_ENV: production
+      APP_DEBUG: "false"
+      APP_URL: https://app.example.test
+      # Explicit public test fixture, used only for this isolated, unexposed local container.
+      APP_KEY: base64:MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
+      DB_CONNECTION: pgsql
+      DB_HOST: db
+      DB_DATABASE: partshelf_test
+      DB_USERNAME: ${DB_USERNAME:-partshelf}
+      DB_PASSWORD: ${DB_PASSWORD:?Start the local stack first}
+      SESSION_DRIVER: database
+      SESSION_SECURE_COOKIE: "true"
+      SESSION_COOKIE: partshelf_dp01_test
+      CACHE_STORE: database
+      FILE_TRANSPORT: object
+      PRODUCT_IMAGE_DISK: r2
+      R2_ENDPOINT: https://storage.example.test
+      R2_ACCESS_KEY_ID: local-test-only
+      R2_SECRET_ACCESS_KEY: local-test-only
+      R2_BUCKET: partshelf-test-only
+      PORT: "8080"
+  s3:
+    image: rustfs/rustfs@sha256:ed9210d6411d77ffceb70d94b964a3cb7d225983368bc25bebe01e995293dcc2
+    command: /data
+    environment:
+      RUSTFS_ACCESS_KEY: partshelf-local-test
+      RUSTFS_SECRET_KEY: partshelf-local-test-not-for-cloud
+      RUSTFS_CONSOLE_ENABLE: "false"
+      RUSTFS_OBS_LOG_DIRECTORY: /tmp
+    tmpfs:
+      - /data:uid=10001,gid=10001,mode=0700
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 20

@@ -1,0 +1,37 @@
+{
+  "call": 1,
+  "evidence": "Focused object/config 6 tests/41 assertions; local RustFS integration 1/18; full earlier regression 63/336; production image HTTP health and exclusions passed. Cloud untested.",
+  "state": "fix-first",
+  "attempt": "dp01-review-1",
+  "candidate": "dp01-files-v1",
+  "authorization": "Local DP01 plus Git commit/push approved; cloud creation/deploy forbidden",
+  "unit": "DP01-files",
+  "freeze": [
+    {
+      "sha256": "CCFB53CE3B9E9BE8181C39F8C833C8A060F26BEF9F20FC99FDB365514897ABDB",
+      "path": "backend/app/Services/ObjectFiles.php"
+    },
+    {
+      "sha256": "ABCADE73249FA40A2AC13AF2D5C86F20483920966BDD13B6969E7F34FDB99131",
+      "path": "backend/app/Http/Controllers/FileTransferController.php"
+    },
+    {
+      "sha256": "53570E46C479FAFDCD896EBFEC5CED999746DA944B8A1874A77EF84820B9509D",
+      "path": "backend/app/Http/Controllers/ProductController.php"
+    },
+    {
+      "sha256": "1A0D83157D445A416E7C03CB9374DA467ABAFEBEFD99CB494AEE598E8E671F76",
+      "path": "backend/app/Http/Controllers/ProductExcelController.php"
+    },
+    {
+      "sha256": "FE885F19F3A30A39C74D013C4A456D7D496AECE53C69B2252B949A22D3046708",
+      "path": "backend/app/Console/Commands/CleanupFiles.php"
+    },
+    {
+      "sha256": "393AFC5E88C8A33AA49F4829C8EF6A2A4AF72891C8E9E78FD0CDDAE68FC12578",
+      "path": "backend/app/Http/Middleware/ProductionConfiguration.php"
+    }
+  ],
+  "budget_cap": 3,
+  "verdict": "P2: old object deleted before outer upload transaction commit; reproduced by regression"
+}

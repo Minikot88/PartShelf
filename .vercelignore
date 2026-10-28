@@ -1,0 +1,17 @@
+.git
+.kimmizo
+.codex
+.agents
+**/.env*
+**/node_modules
+**/vendor
+**/test-results
+**/playwright-report
+backend/storage
+backend/bootstrap/cache/*.php
+**/*.dump
+**/*.log
+frontend/dist
+compose*.yaml
+frontend/e2e
+frontend/test-results

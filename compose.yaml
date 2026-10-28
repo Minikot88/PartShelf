@@ -1,0 +1,85 @@
+name: ${COMPOSE_PROJECT_NAME:-partshelf-local}
+
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${DB_DATABASE:-partshelf}
+      POSTGRES_USER: ${DB_USERNAME:-partshelf}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Run scripts/start-local.ps1 to create an ignored local .env file}
+    ports:
+      - "127.0.0.1:${DB_PORT:-5442}:5432"
+    volumes:
+      - database_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      APP_ENV: local
+      APP_DEBUG: "true"
+      APP_URL: http://127.0.0.1:${API_PORT:-8083}
+      DB_CONNECTION: pgsql
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_DATABASE: ${DB_DATABASE:-partshelf}
+      DB_USERNAME: ${DB_USERNAME:-partshelf}
+      DB_PASSWORD: ${DB_PASSWORD:?Run scripts/start-local.ps1 to create an ignored local .env file}
+      SANCTUM_STATEFUL_DOMAINS: ${SANCTUM_STATEFUL_DOMAINS:-127.0.0.1:5175,localhost:5175,127.0.0.1:8083,localhost:8083}
+      LOG_CHANNEL: stderr
+    ports:
+      - "127.0.0.1:${API_PORT:-8083}:80"
+    volumes:
+      - ./backend:/var/www/html
+      - api_vendor:/var/www/html/vendor
+      - api_storage:/var/www/html/storage
+      - api_bootstrap_cache:/var/www/html/bootstrap/cache
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost/api/health >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    environment:
+      VITE_API_PROXY_TARGET: http://api:80
+    ports:
+      - "127.0.0.1:${WEB_PORT:-5175}:5173"
+    volumes:
+      - ./frontend:/app
+      - frontend_node_modules:/app/node_modules
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:5173').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+
+volumes:
+  database_data:
+  api_vendor:
+  api_storage:
+  api_bootstrap_cache:
+  frontend_node_modules:
+
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: ${DOCKER_SUBNET:-10.250.250.0/24}

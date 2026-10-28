@@ -1,0 +1,34 @@
+# BEGIN KIMMIZO MANAGED BLOCK v1.0.0 checksum:5d503b452be9e2bd75cb60877f3720e0f75f68fb74fadf17832bb6179202f9bb
+# Kimmizo runtime and private project memory
+.kimmizo/memory/
+.kimmizo/runtime/
+.kimmizo/capabilities/receipts/
+.kimmizo/knowledge/lessons.jsonl
+# END KIMMIZO MANAGED BLOCK
+# Local-only generated settings. Never commit .env files.
+.env
+.env.*.local
+frontend/node_modules/
+frontend/dist/
+backend/vendor/
+backend/.env
+backend/.env.*.local
+backend/database/database.sqlite
+backend/storage/logs/*.log
+# Private tooling/configuration, generated data and browser artifacts
+.codex/
+.agents/
+.kimmizo/
+.local/
+**/.env*
+!**/.env.example
+!**/.env.production.example
+*.dump
+*.pem
+*.key
+frontend/test-results/
+frontend/playwright-report/
+backend/bootstrap/cache/*.php
+backend/storage/app/
+backend/storage/framework/
+backend/storage/*.key
