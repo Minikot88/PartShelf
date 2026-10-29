@@ -1,0 +1,22 @@
+{
+  "assurance_unit": "CLOUD_DEMO_20261029",
+  "candidate": "CLOUD_DEMO_PREP_20261029_V1",
+  "snapshot_sha256": "0eea23b55a6cc93bafbb6c7fb7fe6e86cba0a06bf28984ee74ee2389cd67473d",
+  "attempt_id": "CLOUD_DEMO_REVIEW_1",
+  "call": 1,
+  "budget_cap": 3,
+  "reservation_state": "consumed",
+  "execution_mode": "solo-reviewed",
+  "assurance": "protected",
+  "parent_evidence": [
+    "docs/evidence/CLOUD_DEMO_BACKEND_TESTS.txt",
+    "docs/evidence/CLOUD_DEMO_SOURCE_MANIFEST.json",
+    "docs/evidence/CLOUD_DEMO_NEON_PREFLIGHT.json"
+  ],
+  "authority": "Owner explicitly authorized latest Demo Preview deployment and safe Demo provisioning; no Production or LabSphere changes",
+  "gaps": [
+    "Neon admin access missing; schema/role not created",
+    "No cloud release or cloud functional test performed"
+  ],
+  "verdict": "fix-first: raw DB_URL could override effective role/schema"
+}

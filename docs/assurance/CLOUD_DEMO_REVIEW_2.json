@@ -1,0 +1,19 @@
+{
+  "snapshot_sha256": "6f00beff1dd0ff205ae3d739c83484d03c0439aec24d1b5fbb2ebe559b0d0ea0",
+  "attempt_id": "CLOUD_DEMO_REVIEW_2",
+  "verdict": "accept: preparation scope only; no hosted readiness claim",
+  "budget_cap": 3,
+  "delta": [
+    "DB_URL rejects Cloud Demo",
+    "Wrong active role/schema no-write tests",
+    "Private .local excluded by .vercelignore"
+  ],
+  "reservation_state": "consumed",
+  "candidate": "CLOUD_DEMO_PREP_20261029_V2",
+  "call": 2,
+  "assurance_unit": "CLOUD_DEMO_20261029",
+  "gaps": [
+    "Neon admin credential missing",
+    "No cloud write/deploy/functional verification"
+  ]
+}

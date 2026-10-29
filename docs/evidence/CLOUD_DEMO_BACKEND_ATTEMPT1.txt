@@ -1,0 +1,169 @@
+
+  [90;1m.[39;22m[31;1m⨯[39;22m[31;1m⨯[39;22m[31;1m⨯[39;22m[31;1m⨯[39;22m[90;1m.[39;22m[90;1m.[39;22m[90;1m.[39;22m[31;1m⨯[39;22m[90;1m.[39;22m[90;1m.[39;22m[90;1m.[39;22m[31;1m⨯[39;22m[90;1m.[39;22m[90;1m.[39;22m[90;1m.[39;22m[90;1m.[39;22m[90;1m.[39;22m[90;1m.[39;22m[90;1m.[39;22m[90;1m.[39;22m[31;1m⨯[39;22m[31;1m⨯[39;22m[31;1m⨯[39;22m[31;1m⨯[39;22m[90;1m.[39;22m[90;1m.[39;22m[90;1m.[39;22m[90;1m.[39;22m[90;1m.[39;22m[90;1m.[39;22m[90;1m.[39;22m[90;1m.[39;22m[90;1m.[39;22m[90;1m.[39;22m[90;1m.[39;22m[90;1m.[39;22m[90;1m.[39;22m[90;1m.[39;22m[90;1m.[39;22m[90;1m.[39;22m[90;1m.[39;22m[90;1m.[39;22m[90;1m.[39;22m[90;1m.[39;22m[90;1m.[39;22m[90;1m.[39;22m[90;1m.[39;22m[90;1m.[39;22m[90;1m.[39;22m[90;1m.[39;22m[90;1m.[39;22m[90;1m.[39;22m[90;1m.[39;22m[90;1m.[39;22m[90;1m.[39;22m[90;1m.[39;22m[90;1m.[39;22m[90;1m.[39;22m[90;1m.[39;22m[90;1m.[39;22m[90;1m.[39;22m[90;1m.[39;22m[90;1m.[39;22m[90;1m.[39;22m[90;1m.[39;22m[90;1m.[39;22m[90;1m.[39;22m[90;1m.[39;22m[90;1m.[39;22m[90;1m.[39;22m[90;1m.[39;22m[90;1m.[39;22m[90;1m.[39;22m[90;1m.[39;22m[90;1m.[39;22m
+  [90;1m.[39;22m[90;1m.[39;22m[90;1m.[39;22m[90;1m.[39;22m
+  [31m────────────────────────────────────────────────────────────────────────────[39m  
+  [41;1m FAILED [49;22m [1mTests\Feature\AuthenticationAndAuthorizationTest[22m [90m>[39m login returns…    
+[39;1m  Expected response status code [200] but received 419.
+Failed asserting that 419 is identical to 200.[39;22m
+
+  at [32mtests/Feature/AuthenticationAndAuthorizationTest.php[39m:[32m31[39m
+     27▕         ]);
+     28▕ 
+     29▕         $loginResponse = $this->withHeaders($this->spaHeaders)
+     30▕             ->postJson('/api/login', ['email' => strtoupper($user->email), 'password' => 'Correct-Horse-93'])
+  ➜  31▕             ->assertOk()
+     32▕             ->assertJsonPath('user.id', $user->id)
+     33▕             ->assertJsonPath('user.role', 'owner')
+     34▕             ->assertJsonMissingPath('user.password');
+     35▕
+
+  [31m────────────────────────────────────────────────────────────────────────────[39m  
+  [41;1m FAILED [49;22m [1mTests\Feature\AuthenticationAndAuthorizationTest[22m [90m>[39m invalid creden…   
+[39;1m  Expected response status code [422] but received 419.
+Failed asserting that 419 is identical to 422.[39;22m
+
+  at [32mtests/Feature/AuthenticationAndAuthorizationTest.php[39m:[32m56[39m
+     52▕         ]);
+     53▕ 
+     54▕         $this->withHeaders($this->spaHeaders)
+     55▕             ->postJson('/api/login', ['email' => 'staff@example.test', 'password' => 'wrong'])
+  ➜  56▕             ->assertUnprocessable()
+     57▕             ->assertJsonPath('message', 'Invalid credentials.');
+     58▕     }
+     59▕ 
+     60▕     public function test_passwords_over_the_bcrypt_byte_limit_are_rejected_generically(): void
+
+  [31m────────────────────────────────────────────────────────────────────────────[39m  
+  [41;1m FAILED [49;22m [1mTests\Feature\AuthenticationAndAuthorizationTest[22m [90m>[39m passwords over…   
+[39;1m  Expected response status code [422] but received 419.
+Failed asserting that 419 is identical to 422.[39;22m
+
+  at [32mtests/Feature/AuthenticationAndAuthorizationTest.php[39m:[32m67[39m
+     63▕             ->postJson('/api/login', [
+     64▕                 'email' => 'missing@example.test',
+     65▕                 'password' => str_repeat('A', 73),
+     66▕             ])
+  ➜  67▕             ->assertUnprocessable()
+     68▕             ->assertJsonPath('message', 'Invalid credentials.');
+     69▕     }
+     70▕ 
+     71▕     public function test_authenticated_user_can_log_out_and_the_session_is_invalidated(): void
+
+  [31m────────────────────────────────────────────────────────────────────────────[39m  
+  [41;1m FAILED [49;22m [1mTests\Feature\AuthenticationAndAuthorizationTest[22m [90m>[39m authenticated…    
+[39;1m  Expected response status code [200] but received 419.
+Failed asserting that 419 is identical to 200.[39;22m
+
+  at [32mtests/Feature/AuthenticationAndAuthorizationTest.php[39m:[32m77[39m
+     73▕         $user = User::factory()->create(['password' => 'Correct-Horse-93']);
+     74▕ 
+     75▕         $loginResponse = $this->withHeaders($this->spaHeaders)
+     76▕             ->postJson('/api/login', ['email' => $user->email, 'password' => 'Correct-Horse-93'])
+  ➜  77▕             ->assertOk();
+     78▕ 
+     79▕         $sessionCookie = $loginResponse->getCookie(config('session.cookie'), false)->getValue();
+     80▕         $this->app['auth']->forgetGuards();
+     81▕
+
+  [31m────────────────────────────────────────────────────────────────────────────[39m  
+  [41;1m FAILED [49;22m [1mTests\Feature\AuthenticationAndAuthorizationTest[22m [90m>[39m only owner and…   
+[39;1m  Expected response status code [501] but received 419.
+Failed asserting that 419 is identical to 501.[39;22m
+
+  at [32mtests/Feature/AuthenticationAndAuthorizationTest.php[39m:[32m124[39m
+    120▕         foreach (['owner', 'manager'] as $role) {
+    121▕             $this->actingAs(User::factory()->create(['role' => $role]))
+    122▕                 ->withHeaders($this->spaHeaders)
+    123▕                 ->postJson('/api/stock/corrections')
+  ➜ 124▕                 ->assertStatus(501);
+    125▕         }
+    126▕ 
+    127▕         $this->actingAs(User::factory()->create(['role' => 'staff']))
+    128▕             ->withHeaders($this->spaHeaders)
+
+  [31m────────────────────────────────────────────────────────────────────────────[39m  
+  [41;1m FAILED [49;22m [1mTests\Feature\AuthenticationAndAuthorizationTest[22m [90m>[39m login is rate…    
+[39;1m  Expected response status code [422] but received 419.
+Failed asserting that 419 is identical to 422.[39;22m
+
+  at [32mtests/Feature/AuthenticationAndAuthorizationTest.php[39m:[32m186[39m
+    182▕     {
+    183▕         for ($attempt = 0; $attempt < 5; $attempt++) {
+    184▕             $this->withHeaders($this->spaHeaders)
+    185▕                 ->postJson('/api/login', ['email' => 'missing@example.test', 'password' => 'wrong'])
+  ➜ 186▕                 ->assertUnprocessable();
+    187▕         }
+    188▕ 
+    189▕         $this->withHeaders($this->spaHeaders)
+    190▕             ->postJson('/api/login', ['email' => 'missing@example.test', 'password' => 'wrong'])
+
+  [31m────────────────────────────────────────────────────────────────────────────[39m  
+  [41;1m FAILED [49;22m [1mTests\Feature\DemoLoginTest[22m [90m>[39m demo username login requires the ac…   
+[39;1m  Expected response status code [422] but received 419.
+Failed asserting that 419 is identical to 422.[39;22m
+
+  at [32mtests/Feature/DemoLoginTest.php[39m:[32m24[39m
+     20▕     {
+     21▕         config(['partshelf.demo_enabled' => true]);
+     22▕         $user = User::factory()->create(['email' => 'owner.demo@partshelf.invalid', 'password' => 'Demo-Password-9273', 'role' => 'owner']);
+     23▕         $user->forceFill(['username' => 'owner.demo'])->save();
+  ➜  24▕         $this->postJson('/api/login', ['username' => 'owner.demo', 'password' => 'Demo-Password-9273', 'role' => 'staff'])->assertUnprocessable();
+     25▕         $this->getJson('/api/user')->assertUnauthorized();
+     26▕         $this->postJson('/api/login', ['username' => 'OWNER.DEMO', 'password' => 'Demo-Password-9273', 'role' => 'owner'])
+     27▕             ->assertOk()->assertJsonPath('user.role', 'owner');
+     28▕     }
+
+  [31m────────────────────────────────────────────────────────────────────────────[39m  
+  [41;1m FAILED [49;22m [1mTests\Feature\DemoLoginTest[22m [90m>[39m staff cannot select owner or log in…   
+[39;1m  Expected response status code [422] but received 419.
+Failed asserting that 419 is identical to 422.[39;22m
+
+  at [32mtests/Feature/DemoLoginTest.php[39m:[32m36[39m
+     32▕         config(['partshelf.demo_enabled' => true]);
+     33▕         $user = User::factory()->create(['email' => 'staff.demo@partshelf.invalid', 'password' => 'Staff-Password-9273', 'role' => 'staff']);
+     34▕         $user->forceFill(['username' => 'staff.demo'])->save();
+     35▕         foreach ([['role' => 'owner', 'password' => 'Staff-Password-9273'], ['role' => 'staff', 'password' => 'incorrect'], ['password' => 'Staff-Password-9273']] as $input) {
+  ➜  36▕             $this->postJson('/api/login', ['username' => 'staff.demo', ...$input])->assertUnprocessable();
+     37▕             $this->getJson('/api/user')->assertUnauthorized();
+     38▕         }
+     39▕         $this->postJson('/api/login', ['username' => 'staff.demo', 'password' => 'Staff-Password-9273', 'role' => 'staff'])->assertOk();
+     40▕         $this->postJson('/api/stock/corrections')->assertForbidden();
+
+  [31m────────────────────────────────────────────────────────────────────────────[39m  
+  [41;1m FAILED [49;22m [1mTests\Feature\DemoLoginTest[22m [90m>[39m demo username login is disabled by…    
+[39;1m  Expected response status code [422] but received 419.
+Failed asserting that 419 is identical to 422.[39;22m
+
+  at [32mtests/Feature/DemoLoginTest.php[39m:[32m45[39m
+     41▕     }
+     42▕ 
+     43▕     public function test_demo_username_login_is_disabled_by_default_and_metadata_has_no_password(): void
+     44▕     {
+  ➜  45▕         $this->postJson('/api/login', ['username' => 'owner.demo', 'password' => 'anything', 'role' => 'owner'])->assertUnprocessable();
+     46▕         $this->getJson('/api/demo')->assertOk()->assertExactJson(['enabled' => false]);
+     47▕         config(['partshelf.demo_enabled' => true]);
+     48▕         $this->getJson('/api/demo')->assertOk()->assertJsonPath('enabled', true)->assertJsonMissingPath('password');
+     49▕     }
+
+  [31m────────────────────────────────────────────────────────────────────────────[39m  
+  [41;1m FAILED [49;22m [1mTests\Feature\DemoProvisionTest[22m [90m>[39m seed is idemp… [41;1m RuntimeException [49;22m  
+[39;1m  Demo provisioning requires the isolated local demo database.[39;22m
+
+  at [32mapp/Services/DemoProvisioner.php[39m:[32m24[39m
+     20▕             && $connection->getConfig('username') === 'partshelf_demo_runtime'
+     21▕             && $connection->getConfig('search_path') === 'partshelf_demo'
+     22▕             && preg_match('/^[a-z0-9.-]+\.neon\.tech$/', $connection->getConfig('host') ?? '');
+     23▕         if (! config('partshelf.demo_enabled') || $connection->getDriverName() !== 'pgsql' || (! $safeDemo && ! $safeTest && ! $safeCloud)) {
+  ➜  24▕             throw new RuntimeException('Demo provisioning requires the isolated local demo database.');
+     25▕         }
+     26▕ 
+     27▕         if ($safeCloud) {
+     28▕             $identity = $connection->selectOne('select current_user as role, current_schema() as schema');
+
+  [33m1   [39m[39;1mapp/Services/DemoProvisioner.php[39;22m:[39;1m24[39;22m
+  [33m2   [39m[39;1mtests/Feature/DemoProvisionTest.php[39;22m:[39;1m27[39;22m
+
+
+  [90mTests:[39m    [31;1m10 failed[39;22m[90m,[39m[39m [39m[32;1m70 passed[39;22m[90m (366 assertions)[39m
+  [90mDuration:[39m [39m7.15s[39m
+

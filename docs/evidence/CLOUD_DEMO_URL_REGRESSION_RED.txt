@@ -1,0 +1,26 @@
+
+  [39;41;1m FAIL [39;49;22m[39m Tests\Feature\CloudDemoBoundaryTest[39m
+  [32;1m✓[39;22m[90m [39m[90mpreview demo requires the dedicated schema and runtime role[39m[90m         [39m [90m0.16s[39m  
+  [32;1m✓[39;22m[90m [39m[90mproduction target and missing target fail closed[39m[90m                    [39m [90m0.05s[39m  
+  [32;1m✓[39;22m[90m [39m[90mdisabled flag stays disabled in preview[39m[90m                             [39m [90m0.05s[39m  
+  [31;1m⨯[39;22m[90m [39m[90mconnection url cannot override cloud demo isolation[39m[90m                 [39m [90m0.05s[39m  
+  [31m────────────────────────────────────────────────────────────────────────────[39m  
+  [41;1m FAILED [49;22m [1mTests\Feature\CloudDemoBoundaryTest[22m [90m>[39m connection url cannot overr…   
+[39;1m  Failed asserting that true is false.[39;22m
+
+  at [32mtests/Feature/CloudDemoBoundaryTest.php[39m:[32m48[39m
+     44▕     public function test_connection_url_cannot_override_cloud_demo_isolation(): void
+     45▕     {
+     46▕         $this->preview();
+     47▕         config(['database.connections.pgsql.url' => 'postgresql://other_role:synthetic@other.neon.tech/neondb?search_path=public']);
+  ➜  48▕         $this->assertFalse(DemoEnvironment::enabled());
+     49▕     }
+     50▕ }
+     51▕
+
+  [33m1   [39m[39;1mtests/Feature/CloudDemoBoundaryTest.php[39;22m:[39;1m48[39;22m
+
+
+  [90mTests:[39m    [31;1m1 failed[39;22m[90m,[39m[39m [39m[32;1m3 passed[39;22m[90m (8 assertions)[39m
+  [90mDuration:[39m [39m0.44s[39m
+

@@ -1,0 +1,25 @@
+{
+  "dp03": "IN_PROGRESS",
+  "deployment_created": false,
+  "review": "CLOUD_DEMO_REVIEW_2 ACCEPT preparation only",
+  "blocker": "Current Neon runtime role lacks DDL; scoped administrator URL unavailable",
+  "tests": {
+    "frontend_build": "PASS",
+    "focused_boundary_tests": 5,
+    "full_backend_assertions": 410,
+    "focused_boundary_assertions": 14,
+    "pint": "PASS",
+    "full_backend_tests": 81,
+    "frontend_lint": "PASS"
+  },
+  "date": "2026-10-29 Asia/Bangkok",
+  "final_status": "BLOCKED",
+  "latest_cloud_tests": "NOT_VERIFIED",
+  "production": "UNCHANGED",
+  "cloud_writes": 0,
+  "labsphere": "UNTOUCHED",
+  "source_commit": "14cd8d7a623d1194eba713aefd15c04704f79250",
+  "branch": "codex/cloud-demo-20261029",
+  "github_visibility": "public",
+  "publication": "AUTO_REVIEW_REJECTED; explicit public source-only push approval requested; no push executed"
+}

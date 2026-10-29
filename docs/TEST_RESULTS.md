@@ -1,6 +1,24 @@
 # PartShelf — Test Results
 
-**Run date:** 2026-10-28 (Asia/Bangkok)  
+## Inventory integrity audit — 2026-10-29
+
+Docker setup follow-up PASS (configuration/readback): Owner approved relocation; actual disk D:\DockerData\DockerDesktopWSL,old C data VHDX absent; after full WSL restart docker info4CPUs/6216564736 bytes RAM/json-file driver,swap1048576KiB,Kubernetes disabled. Config readback6GB/4CPU/1GB swap,GC2GB target,logs10m×3; images/containers/volumes/cache all0. No under-load rotation/eviction tests or inventory behavioral tests in this setup task. See `DOCKER_LOCAL_SETUP.md` and `evidence/DOCKER_LOCAL_SETUP.json`. This supersedes the CLI-unavailable observation; no new inventory regression PASS is claimed.
+
+**Overall: NOT_VERIFIED.** No inventory API or database writes were issued in this audit. Existing test results below are historical evidence; they were not re-run here.
+
+| Check | Result | Evidence / limitation |
+|---|---|---|
+| Source/schema review | PASS — static only | `StockController`, `StockCountController`, core migrations, correction/idempotency migrations, and four related Feature test files inspected. Writes are grouped in transactions; product/balance/count rows use locks; PostgreSQL stores `decimal(14,3)` and checks inventory/count quantities non-negative. Static inspection does not establish runtime behavior. |
+| Existing normal/error test coverage | PASS — historical only | Prior reports record coverage for opening, receipt, same-key replay and payload conflict, count without stock mutation, zero count, movement-aware variance/recount, Owner correction/replay, negative correction, and PostgreSQL negative-balance constraint. See `INVENTORY_INTEGRITY_AUDIT.md` for exact test names. |
+| Concurrent sessions and duplicate races | NOT_VERIFIED | No fresh multi-connection PostgreSQL run. |
+| Transaction rollback / injected failure | NOT_VERIFIED | No fresh fault-injection test proving balance, movement and audit rollback atomically. |
+| Owner/Manager correction and decimal boundaries/unit conversion | PASS — historical role tests; boundaries NOT_VERIFIED | Existing tests include Owner correction/replay and Manager correction success, plus Staff denial. No decimal-boundary matrix was found. No unit-conversion facility was found in the source inspected. |
+| Isolated Test DB execution | BLOCKED | `backend/phpunit.xml` pins tests to `partshelf_test`, but `docker`/`php` are unavailable in this shell. Loopback ports `5442`, `5443`, `8083`, `8084`, `5175`, `5177` were already accepting connections, so no tests were sent to Local/Demo. |
+| Data preservation | PASS — scope | No API writes, database commands, reset, Local/Demo/Staging mutation, Production action, or cloud action was performed. |
+
+No application source fix was made because static review did not establish a concrete defect. Do not treat historical suite results as a fresh PASS for this audit. Next: run focused inventory and full regression only after restoring access to the isolated PostgreSQL Test DB and confirming `current_database() = 'partshelf_test'`; add and run the missing concurrency, rollback and decimal-boundary tests. Full item-by-item results: `INVENTORY_INTEGRITY_AUDIT.md`.
+
+**Historical baseline run date:** 2026-10-28 (Asia/Bangkok)  
 **Status:** P00–P12 acceptance verified; Owner confirmed the P12 UAT checklist passed on 2026-10-28.  
 **Runtime:** Docker Desktop 29.8.1; Compose 5.5.1; Node 24.18.0 / npm 11.16.0; Laravel 13.11.0 skeleton with framework 13.39.0; PHP 8.4 Apache; PostgreSQL 17 Alpine.
 
@@ -266,3 +284,171 @@
 | Cloud readiness | NOT_RUN | Real R2 bucket/CORS/lifecycle, Neon TLS/pooling/concurrency, Vercel deployment/HTTPS browser sessions and cloud recovery remain DP02–DP03 gates. |
 
 **PASS — DP01 local preparation and review met acceptance.** This does not claim cloud readiness or authorize cloud provisioning/deployment.
+
+## DP02 — staging resource provisioning, 2026-10-28
+
+| Check | Result | Actual evidence |
+|---|---|---|
+| Authority / isolation | PASS | Owner approved PartShelf staging Vercel/Neon/private R2 resource creation, explicitly no deploy and pause at usage<=50% remaining. All create/env/token requests targeted new PartShelf names/IDs. No LabSphere resource, credential or source was used for writes. |
+| Vercel resource | PASS | Created `partshelf-staging` /`prj_9pZ790dvjdRIcZrBe3BxqkXTdjXu` under `team_oLV66sa4oVrdF5ux9pds0UbP`. Independent GET: name/account match, no Git link, `live=false`, protection enabled. Connector omitted region/plan; Brave later confirmed Hobby and saved Function Region Asia Pacific/sin1 with disabled Save. Deployed region/compatibility NOT_RUN. |
+| No deployment | PASS | `list_deployments` with exact PartShelf project+team returned `deployments=[]`, pagination count0, both before and after env writes. No deployment command, migration, seed, DNS, alias or traffic change. |
+| Private R2 resource | PASS | New `partshelf-staging-files`, creation timestamp2026-10-28T04:26:50.577Z, APAC/Standard/default jurisdiction. Independent GET confirms managed r2.dev disabled, custom domains empty and object list empty. |
+| R2 token least privilege | PASS — policy readback | `partshelf-staging-r2-objects` active; expires2027-01-26T00:00:00Z. GET token policy confirms only bucket-item-write permission scoped to the exact PartShelf staging bucket. No bucket admin/account-wide/LabSphere access. Actual S3 object access NOT_RUN. |
+| Preview secret handoff | PASS — final metadata readback | 42 total Sensitive variables, every target exactly Preview, Production targets0/hidden count0. Includes six R2 settings,16 secure core settings/unique cryptographic32-byte APP_KEY,16 Neon-injected settings and four DB_* aliases. Four aliases explicitly have visibility Secret. No raw value in evidence/source/chat; task clipboard cleared. Origin settings await DP03 target. |
+| Neon Free preflight | PASS | Existing account-level installation allows provisioning; product metadata lists Singapore/sin1 and optional Auth/Realtime. Billing-plan lookup returns `free_v3`, Free, payment method not required. No plan upgrade. This does not prove a database exists. |
+| Neon resource | PASS — independent readback | Initial connector/auth blocker resolved when Owner prepared Brave. Created `partshelf-staging-db`, Neon project `little-wind-47225058`, Vercel store `store_xycTwG0dVKpKtiZ7`. Browser creation summary selected sin1/Authfalse/Realtimefalse/Free. Storage API confirms available/ready, sin1/Authfalse/free_v3, and exactly one project connection: PartShelf staging, Preview only, Sensitive=true, deployment actions empty. Distinct from LabSphere project `billowing-wildflower-35651578`. |
+| Reauthentication | PASS — Owner action | Copy Snippet prompted authenticator; Owner completed this directly in Brave. No OTP requested in chat, no warning bypass or new auth integration. New Neon snippet copied privately only for PartShelf Laravel aliases. |
+| Bulk import regression | PASS — corrected; failure retained | Vercel .env paste reset earlier Secret/Preview selections: four DB aliases saved as Config and Preview+Production. API readback detected mismatch before any deployment. Target-only edits removed Production. Type-only edits failed HTTP400 requiring visibility=secret (edit connector schema lacks that input); `create_project_env` upsert with explicit Sensitive/Secret/Preview corrected all four. Independent final readback confirms42 vars, no duplicates, all Sensitive/Preview, four aliases Secret, Production0 and deployment0. No raw credential printed. |
+| Exact-origin R2 CORS | PENDING | GET CORS returned HTTP404/code10059, no policy exists. No wildcard added. Approved ingress/origin is not available before DP03 target selection. Initial batched readback stopped at this expected absence; successful bucket/domain/token readbacks were repeated separately with explicit per-request handling. |
+| App/DB/cloud transport | NOT_RUN | No deployment, schema/seed, Neon TLS/pooling/transaction tests, signed R2 byte operations, cloud browser flow or recovery drill. No app code changes in DP02 and no new local service/port. DP01 local test results are not cloud acceptance. |
+| Usage | PASS — latest observed | 38% used /62% remaining, above the immediate-pause threshold. No reset credit consumed. |
+| Saved evidence / documentation | PASS | JSON assertions verify phase status,42 Sensitive Preview vars, zero deployments, private/empty R2 and independent Neon identity/project connection. Credential-pattern scan of all six changed documentation/evidence files found no raw connection password/APP_KEY/R2 secret pattern. Git diff --check passed. No application code changed, so application tests were not rerun. |
+
+Evidence: `DP02_STAGING_RESOURCES.md` and sanitized `evidence/DP02_RESOURCE_READBACK.json`. **PASS — DP02 DONE for provisioning only**: three isolated resources, required credential storage/targets and zero deployment verified. DB roles/engine/retention, origin configuration and actual cloud application/recovery compatibility are DP03+ gates, not claimed by this result. Await separate deployment/migration approval.
+
+## DP03 — staging and actual cloud tests, 2026-10-28 (IN_PROGRESS)
+
+| Check | Result | Actual evidence |
+|---|---|---|
+| Protected operations review | PASS after fix | Attempt1 rejected insufficient reused-role validation. Attempt2 accepted frozen v2. Actual local partshelf_test role cases4 pass (fresh safe/elevated/member/owner), all fixtures rolled back. Final PHP lint and missing-flag rejection pass. Initial fixture test used wrong env key and failed authentication before mutation; corrected after Compose key inspection. |
+| Neon engine/TLS/identity | PASS | Actual staging project host digest fixed; initial public tables0; PostgreSQL18.6. PDO verify-full and psql client TLSv1.3/TLS_AES_256_GCM_SHA384 verified. pg_stat_ssl=false at backend is not treated as external TLS evidence. |
+| Cloud migration/runtime role | PASS | Ordinary Laravel migrate --force applied10 migrations on fixed staging only; no fresh/rollback/seed. Pooled partshelf_runtime has no superuser/createdb/createrole/inherit/replication/bypassrls/membership/ownership/database/schema CREATE or migration INSERT. DML verified; admin secret injection removed from PartShelf Vercel connection. |
+| Neon constraints/concurrency | PASS — direct cloud | Runtime-role runner8 cases: persistent DDL42501, case-insensitive SKU23505, negative balance23514, FK23503, decimal1.125, idempotency23505, competing row lock55P03, advisory transaction exclusion/release. Exact generated fixture removed; products0 afterward. Not hosted API proof. |
+| R2 actual byte integration | PASS — direct cloud | Signed PUT/GET5MiB exact SHA256; unsigned GET denied400; promoted object unchanged after staging overwrite; expired signature403; exact test-prefix cleanup0. Bucket-only30-minute token revoked afterward. Initial token expiration with fractional seconds returned400, corrected to documented whole-second format. This test uses local production image to real R2, not a mock or hosted browser. |
+| First deployment target | FAIL / CANCELED | Explicit target=staging request1 returned Production before build completion. Immediately canceled; GET confirms CANCELED before Ready, project livefalse. Retained request/id and upstream Vercel issue17069/merged PR17206 evidence. No silent retry or unapproved bootstrap. |
+| Placeholder exception | PASS — exact Owner approval | Owner explicitly approved empty static placeholder on staging project only. Production env0; exact2-file payload has no app/DB/R2 credentials/data. dpl_GTr74rC3GHHCXPPHic1yBiavofiE READY/Production, bounded exception only. |
+| Actual app probe | PASS — compatibility/fail closed only | dpl_2YBmHfAjaZG4YrBMwMRXGymYkbQZ READY/target staging; actual runtime logs environment=preview, region sin1, Apache peer127.0.0.1. Hosted /api/health returned503 with configuration-incomplete JSON and private/no-store, expected because origin absent at creation. PHP8.4.27/Apache container runs on Vercel. |
+| Exact origin/CORS | CONFIGURED, browser pending | APP_URL/Sanctum saved only after actual staging alias readback; exact R2 origin allows GET/PUT/HEAD and Content-Type, no wildcard origin. Original combined credential/origin write was rejected by automatic approval review and replaced with runtime-only then verified-origin steps. |
+| Trust proxy | APPLIED with explicit Owner approval | Initial automatic rejection retained. Owner explicitly approved exact127.0.0.1 Preview only, then API write accepted. Current30 Sensitive Preview vars/Production0. Database session metadata shows a non-loopback client IP without printing it. Authenticated spoofed-header negative still NOT_RUN; genuine forwarding is not spoof-resistance proof. |
+| Configured container/health | PASS | dpl_FnHmGW3CBcUoUQZwnWzJcbZWSPi7 READY/staging, authenticated health200/databaseok. Root404 reproduced while /index.html and deep link200. |
+| Root fix/release identity | PASS | One literal root rewrite to frontend/index.html. Review3 accepted bounded config/packager candidate; parent verified115-file snapshot hash fd3918bdd1f21abdc431f866649117308628520c070bd1d01ff196dff0b6ba2d. dpl_B2VSAbvHyTtMBP45dakYGEY6woZL READY/staging; only existing staging branch alias rebound. Browser root loads and retains session across deployment. No new Git commit/push. |
+| Hosted business flow | PASS | Owner UI creates category/location/product, assigns location without stock mutation, opening10 + receipt2.125 =12.125. Count11.125 leaves stock unchanged; receipt3 produces15.125; recount14.125 yields-1.000; correction produces14.125. Independent Neon readback confirms4 movements,2 attempts,1 correction and expected audit actions. |
+| Hosted role enforcement | PASS | Staff has0 add/stock-write/correction/Excel controls. Direct authenticated template endpoint returns403, confirmed in Vercel runtime logs. Staff logout followed by Manager login succeeds; Manager management/stock/Excel controls present. |
+| Hosted export/API/R2 bytes | PASS — bounded | Manager session requests actual product/count exports through browser; signed URLs kept private. Real R2 download/ZIP/OpenSpout parsing confirms product XLSX4557 bytes/2 rows, count XLSX4680 bytes/3 rows including both11.125 and14.125 attempts. Native browser save event timed out and standard Downloads file was absent; native save NOT_VERIFIED, not claimed PASS. |
+| Protection/production boundary | PASS — observed | One unauthenticated raw health request302 to Vercel authentication; no repeated raw unauthenticated requests. Browser verifies partshelf-staging.vercel.app is still the Owner-approved empty static placeholder. No application Production-target release. |
+| Browser file automation | BLOCKED | PNG/XLSX chooser reports file-URL access disabled. Owner said will enable, but successful permission readiness/upload not observed. Two chooser calls stalled despite timeout parameters; no further chooser retries. Native fallback found Brave window, then Computer Use forcibly stopped the turn because current browser URL could not be established confidently for Windows policy. No UI actions after stop. Image upload/replace/read, XLSX preview/confirm/replay and native save remain unverified. |
+| Cleanup/retained fixtures | PARTIAL | Direct R2 test prefix emptied and temporary test token revoked; admin/local-test/R2 credential duplicates deleted. Retained3 verification users,1 clearly named product/category/location,1 count round/2 attempts,4 movements/1 correction and immutable audit evidence for unfinished UAT. App temporary export objects/ledger remain; final browser fixture/expiry cleanup not claimed. |
+| Usage / final status | IN_PROGRESS | Latest97% remaining; no reset tool called by agent. Not a50%-threshold pause. All3 protected review calls consumed; current root candidate accepted, no further source edits after that review. DP03 not DONE because file E2E/security negatives/cleanup are incomplete. |
+
+Current sanitized evidence: `DP03_STAGING_VERIFICATION.md`, `evidence/DP03_CLOUD_READBACK.json`, `assurance/DP03_REVIEW_1.json`, `assurance/DP03_REVIEW_2.json`. DP03 remains IN_PROGRESS, not DONE. No actual production app release, paid upgrade or DNS cutover.
+
+## DP03 continuation — actual results, 2026-10-28
+
+| Check | Result | Evidence / scope |
+|---|---|---|
+| Existing cloud identity | PASS — fresh read-only | Same project/team/deployment/alias; deployment READY/staging/sin1.30 Sensitive Preview-only envs, Production0/hidden0. Neon store/project available Free/sin1/Authfalse; runtime PostgreSQL18.6 verify-full read-only connection. R2 private/APAC/Standard, r2.dev false and exact CORS origin unchanged. `evidence/DP03_CONTINUATION_READBACK.json` |
+| Browser readiness | PARTIAL | Exact staging URL verified, Manager session present; chooser opens but setFiles PNG returns file-URL permission rejection. No bypass/settings change; no actual upload submitted. Browser binding reset once and was reidentified by same Brave extension/exact URL, not by guessed window. |
+| Anonymous browser API | FAIL — deployed cloud | After real logout, GET /api/user renders generic Server Error. Vercel preview/sin1 stdout confirms500 at2026-10-28T10:32:57.885Z; stderr confirms Route [login] not defined. No user data in response. Edge302 historical result is not application401 proof. |
+| Regression red | PASS — failure reproduced locally | Two new cases: Accept text/html and absent Accept. Both failed (2 assertions), actual500 instead of401, same missing login route. Initial restricted Docker pipe failed before execution; normal approved Docker command then ran in isolated partshelf_test. |
+| Local auth fix | PASS — local only | bootstrap redirectGuestsTo returns null for api/*, root for non-API guests. Focused AuthenticationAndAuthorizationTest14 passed/46 assertions; full isolated suite68 passed/361 assertions. HTML case also asserts JSON Content-Type, safe Unauthenticated message, no Location. |
+| Candidate checks | PASS — local only | Pint --test on bootstrap/app.php + auth test:2 files. Frontend TypeScript/Vite build passes, oxlint0 warnings/errors. Frozen hashes in `evidence/DP03_AUTH_FIX_CANDIDATE.json`. No production-image rebuild or cloud fix claim. |
+| New candidate review/deploy | NOT_RUN / pending review authority | Previous3/3 protected review calls used; prior accept applies only old config/root snapshot. No fourth call/reset. Local backend fix not independently reviewed or deployed. Existing Git-base packager must be updated/verified to include fix before any future deploy. |
+| Staff protected operation | PASS — GET scope only | Actual Staff login, write/Excel UI absent. Direct GET /api/products/import/template denied; fresh runtime log2026-10-28T10:37:07.410Z confirms403, preview/sin1. No new Staff POST write probe claimed. |
+| File UAT/native save | NOT_VERIFIED | New manual procedure `DP03_MANUAL_UAT.md`;5MiB PNG, replacement PNG and valid/invalid XLSX fixtures prepared locally. Local fixture generation is not cloud preview/confirm/replay/download proof. |
+| Remaining cloud negatives | NOT_RUN | Authenticated missing-CSRF, forwarded-header spoofing, confirmation replay, Staff POST. Historical R2 unsigned400/expired403 remain direct-provider proof; hosted image tests still unverified. |
+| Cleanup inventory | PASS — read-only inventory | READ ONLY transaction matches3 exact test users and original fixture, product3/image null/balance14.125;3 owned export ledgers; audit action counts preserved. Exact R2 key metadata matches ledger sizes. No all-bucket scan/delete. |
+| Expired temporary object cleanup | PASS — one exact object | Owner1 export ef3e8e26-6c6e-4a40-b3c2-7eed9f7a21f8/products.xlsx expired08:17:26 UTC; inventory saved before deletion. Single-object DELETE200, subsequent exact-key list200/result[]. Ledger/audit remain.2 unexpired export objects and core UAT fixtures retained; final cleanup PARTIAL. |
+| Phase/production/usage | IN_PROGRESS | DP03 acceptance incomplete; DP04 NOT_STARTED, handoff backlog only. No new resource/secret/deploy/commit/push, no Production/LabSphere mutation. Latest95% usage remaining, above50%; no reset used. |
+
+No source fix is claimed on staging. Closure matrix: `DP03_FINAL_ACCEPTANCE.md`. Manual Owner results must be received and independently reconciled before promoting any NOT_VERIFIED result.
+
+## Working Demo — 2026-10-28 to2026-10-29 (Asia/Bangkok)
+
+| Check | Result | Actual evidence |
+|---|---|---|
+| Local isolation | PASS | Separate Docker project/DB/volumes/network; ports5177/8084/5443 loopback, inspected via netstat and Docker mapping. Original local5175/8083/5442 untouched; no cloud seed/migration/deploy |
+| Demo auth test-first | PASS |3 initial failures (missing username column/metadata), then3/18 login tests green. Existing email login and Sanctum session/CSRF preserved; Role query constraint cannot change stored role |
+| Provision guard/idempotency | PASS after fix | Final7/33 focused tests incl hashes/no duplicate/preserve edited stock. Reviewer1 found static host vs active connection gap; no-network regression red then green after active getConfig('host') fix. Actual provision repeats seededfalse/products25 then28 |
+| Count picker | PASS after fix | Browser discovered joined user.id replaced count.id. Regression red [1,1] vs[2,1], then explicit c.* selection; focused10/75 green. Browser options3/2/1 verified and Manager reopened round3 |
+| Full candidate | PASS |76 tests/398 assertions on isolated partshelf_test; final Pint changed files pass, frontend TypeScript/Vite build and lint0 warnings/errors; startup/stop/reset PowerShell parse |
+| Real HTTP backend/database | PASS |45 checks, real local API/PostgreSQL (no mocks):3 roles, bad password/role422, logout204 then401, missing-CSRF419, Staff writes/Excel403, catalog/location/stock/count/recount/Owner+Manager corrections; evidence/DEMO_RUNTIME_RESULTS.json |
+| Real Excel HTTP | PASS |7 checks: multipart preview200, confirm201, replay422/no duplicate, readback/logout. Product XLSX5694 bytes read with OpenSpout27 rows at export time. Separate from native browser save |
+| Browser real workflows | PASS |Owner/Manager/Staff actual UI login; bad password and mismatched Staff→Owner role rejected without private UI. Owner added/search/detail/location/receipt22→25/count24/recount23/correction25→23. Manager reopen/recount22/correction23→22. Staff mobile recount21 leaves stock22 and no write/Excel/correction controls |
+| Mobile/persistence | PASS — viewport only |390×844 override, document clientWidth=scrollWidth375; show/hide password text/password using synthetic string only. Refresh retained Owner session/stock23; SQL final stock22 and attempts24/23/22/21 separate, reference25. Screenshot .local/demo/staff-mobile.png; physical phone not claimed |
+| Browser file integration | NOT_VERIFIED |Download event timed out and stalled despite timeout parameters; no native save confirmed and no retry/bypass. Browser import not performed. Manual UAT in DEMO_TEST_REPORT.md; API Excel proof kept separate |
+| Dependency startup | PASS after correction |Fresh volumes inherited stale image dependencies; qrcode error observed. Synced Composer/npm lockfiles into only Demo volumes, restarted only Demo web. Second startup no duplicate data. Dev watcher stale label fixed by Demo web restart; final Password label correct |
+| Review | PASS after fix |Separate new Demo protected unit: REVIEW1 fix-first, REVIEW2 accept active-host fix, REVIEW3 accept count picker fix/all16 v3 hashes.3/3 used; no further source changes. Not a DP03 budget reset or cloud release approval |
+| Secrets/handoff | PASS — scope |Random distinct passwords generated in ignored ACL-protected private file, hashed at rest, none in frontend/tracked docs. Owner explicitly requests successful Demo passwords in final chat; no service/production secret handed off |
+| Reset | NOT_RUN |Script parsed, fixed Demo project only, SupportsShouldProcess high confirmation. No reset executed over completed UAT data |
+| Cloud/DP03 | UNCHANGED / IN_PROGRESS |No Staging Demo: no tenant isolation in shared catalog. Historical deployment READY/staging/sin1 verified, no Demo source/data/secret written there. Owner later approved1 extra pinned DP03 auth review/staging-if-pass and Manual UAT; this is authority, not proof of tests |
+
+Detailed19-item coverage, known limitations, role matrix and operating/reset commands: `DEMO_TEST_REPORT.md`. Latest usage78% remaining, above immediate-pause threshold; no reset credit consumed.
+
+## DP03 Owner-approved auth-only staging release — 2026-10-29
+
+| Check | Result | Actual evidence |
+|---|---|---|
+| Exact authority/review | PASS | Direct Owner reply approved1 extra read-only auth review and staging-if-pass. DP03_REVIEW_4 accepts; original3 calls retained, extendedcap4/used4. No Demo review substituted |
+| Release exclusion/integrity | PASS |115 pinned files; independent manifest comparison finds only backend/bootstrap/app.php delta. All Demo username/role/seed/migration/count-picker/UI changes excluded. Parent reads46 chunks and independently SHA256 validates payload3c22f6393332c8c4e7f8916e986265b7653f17aae9666ff0cca8f7bed60118fa |
+| Fresh preflight | PASS | Same project/team/branch alias;30 Sensitive Preview-only vars, Production0/hidden0; Production alias points original placeholder |
+| Deploy/target/alias | PASS | dpl_EWQdag1ji9DF2T2tczv4os1qWWRo READY/staging/sin1; runtime preview. Only existing staging branch alias assigned/read back; Production alias unchanged |
+| Actual health | PASS cloud | Brave GET /api/health returns status/databaseok; runtime HTTP200 at2026-10-29T01:48:59.720Z |
+| Anonymous browser API | PASS cloud — supersedes previous500 | Brave GET /api/user returns JSON Unauthenticated; runtime HTTP401 at2026-10-29T01:49:05.427Z, exact new deployment/preview/sin1. Missing-Accept local regression still separate; no blanket CSRF/spoofing claim |
+| DP03 data preservation | PASS read-only | Original runtime-role SELECT script verifies product3/DP03-BROWSER-20261028 stock14.125,4 movements,2 attempts,1 correction and expected audit actions. No Demo records/data migration or seed |
+| Remaining acceptance | NOT_VERIFIED / IN_PROGRESS | Owner chose Manual UAT but no result attested. File/browser-native save, authenticated CSRF/spoofing/replay and final cleanup pending. DP03 not DONE |
+
+Evidence: `evidence/DP03_AUTH_RELEASE_MANIFEST.json`, `evidence/DP03_AUTH_RELEASE_RESULT.json`, `assurance/DP03_REVIEW_4.json`. No Production resource/alias/DNS change, credentials/env change, Git commit/push or LabSphere mutation.
+
+
+## UX/UI Local Demo audit — 2026-10-29 (IN_PROGRESS)
+- Owner-authorized scope: all existing Demo screens/roles; no cloud release, production/DNS/LabSphere/push.
+- Execution: solo-reviewed, assurance protected (real Demo sessions/data integrity); new UX assignment, independent ledger from completed Demo and DP03 reviews. Review budget reserved 0/3, target one read-only review after frozen candidate. No writer agent.
+- Baseline: real Playwright, 12 role/viewport measurements; Owner/Manager320px page overflow4px; visible small buttons and 4–7-screen single-page layout. Evidence `docs/evidence/UX_BASELINE.json`; private sanitized screenshots `.local/ux-audit/before/`.
+- Implemented sidebar/drawer/hash navigation and lazy existing panels; count thumbnails/accessibility/Enter save/focus-next and unsaved-change guards. Paging uses existing product/stock endpoints.
+- TDD: navigation initially failed missing nav, now PASS1; count-image contract initially failed null URL, now PASS1/4 assertions. Frontend build and lint passed during implementation. Full regression/responsive/visual gate pending.
+- Usage readback:24% used /76% remaining; pause at <=50% remaining; no reset used.
+- DP03 stays IN_PROGRESS. This Local UI work does not establish any new cloud acceptance.
+
+
+## Local UX/UI candidate — 2026-10-29 (browser verified, overall IN_PROGRESS)
+- Existing Local Demo now has compact lazy routes/sidebar/mobile drawer. No Settings/User module invented. No cloud/Staging/Production/secret/DNS/LabSphere change; no commit/push.
+- **PASS:** frontend lint/TypeScript/build; backend full77/402 and focused count image1/4; Pint2 files; real browser10 tests, existing mocked contract2 tests.
+- **PASS:**330 loaded route/role/viewport checks including drawer/navigation,99 expanded form/detail checks,11 login layouts (440 total). Required widths320/360/375/390/430/768/1024/1280/1440/1920 plus breakpoints767/769/1023/1025 and844x390 landscape.19 axe scans zero observed violations; no full accessibility certification claimed.
+- Real PNG upload/replace/render, product create/edit/search/detail/location, opening/receipt, count/recount/explicit correction, preserved other-row draft, Manager category/location updates, Staff count201 and prohibited receipt403 verified against Laravel/PostgreSQL. Native XLSX import success201/replay422 and local export save/read verified; initial successful import retained in evidence; later previews intentionally report duplicates.
+-30 Demo products/4 categories/3 locations retained. Old sample stock22, attempts24/23/22/21 and2 corrections preserved. No reset/cleanup. Previous cloud/manual UAT gaps remain separate.
+- **NOT_VERIFIED / completion blocker:** actual mobile OS keyboard and one-handed reach with keyboard open. Optional physical camera/scanner/printer/device font checks remain manual. No Browser permissions changed and no LAN exposure added.
+- UX_UI remains **IN_PROGRESS**, not DONE, until required real-mobile UAT result. DP03 still IN_PROGRESS. Frozen21-file candidate UX_LOCAL_20261029_V1; read-only protected review1/3 reserved, verdict pending.
+- Evidence: docs/UX_UI_AUDIT.md, docs/RESPONSIVE_TEST_MATRIX.md, docs/evidence/UX_BROWSER_TEST_SUMMARY.json, UX_RESPONSIVE_RESULTS.json, UX_EXPANDED_STATES.json, UX_REAL_API_RESULTS.json, UX_ROLE_OPERATIONS.json, UX_EXCEL_BROWSER_RESULTS.json, UX_FINAL_INVENTORY.json, UX_BUNDLE_RESULTS.json. Screenshots private ignored .local/ux-audit/before and after. No passwords/tokens/cookies in published evidence.
+
+
+### UX protected review1 — fix-first; corrections under verification
+- Vera read-only verified21 hashes but found P1 unsent-search refresh could discard another draft and P2 focus followed IDs instead of SKU display order. Old V1 test coverage was insufficient for these cases; V1 is not accepted.
+- Both added regressions failed before fix and now pass focused (1 actual browser +1 mocked ordering test). Applied/draft search separated, drafts preserved, visible-order focus and pending-input lock implemented. Full V2 checks running; no new full PASS claimed yet.
+- Same OWNER_UX_UI_20261029 cap3,1 consumed; prior Demo/DP03 review history untouched. UX_UI/DP03 stay IN_PROGRESS. Physical keyboard still NOT_VERIFIED.
+
+
+### UX V2 full checks PASS — review2 pending
+Both review defects now covered by red/green regressions. CandidateV2: backend77/402,real browser10,mocked3,lint/TS/build,440 layouts/330 navigation,19 axe scans zero all PASS. Same cap3 consumed1; review2 reserved before dispatch. V1 fix-first retained; no DONE claim; physical keyboard NOT_VERIFIED.
+
+
+## UX/UI final local verification — 2026-10-29
+**WORK_STATUS: browser/code verified. INDEPENDENT_REVIEW: ACCEPT, UX_UI_REVIEW_2 / UX_LOCAL_20261029_V2,21 hashes. FINAL_STATUS: IN_PROGRESS (required physical mobile OS keyboard UAT NOT_VERIFIED).**
+- Latest full checks after review fixes:77 backend tests/402 assertions; real browser10; mocked contract3; frontend lint/TS/build; Pint2 PASS.440 layout checks (330 main/navigation +99 expanded +11 login),19 axe scans zero observed violations; no full certification claim.
+- Reviewer1 correctly found unsent-search draft loss and ID-vs-SKU focus ordering. Both regressions failed before correction and pass now. V1/attempt1 retained, same assurance unit2/3 consumed; no extra review or deployment authorized by acceptance.
+- All existing8 workspace views plus Login/role/permission/error/expanded states covered. User/Settings/date picker/new modules NOT_APPLICABLE. Required widths320/360/375/390/430/768/1024/1280/1440/1920; breakpoints767/769/1023/1025 and844x390 landscape included.
+- Real PNG create/replace/render, opening/receipt, count/recount/correction/draft/zero, Manager updates and Staff positive/negative operations pass. Actual native Excel import/validation/confirm/replay/save and OpenSpout content read verified. Local Excel gap in initial Demo handoff is resolved; cloud DP03 UAT remains separate and incomplete.
+- Required follow-up: real mobile keyboard field visibility/one-handed reach/native dropdown checks. Current Demo stays loopback-only; no LAN binding/Browser permissions changed. Physical scanner/camera/printer optional manual checks NOT_VERIFIED. No observed remaining critical defect within tested Chromium scope; no DONE claim.
+- URL http://127.0.0.1:5177/; Docker partshelf-demo, API8084/DB5443 healthy. Existing data retained; no reset. No cloud resources, Staging/Production release, DNS/LabSphere change, commit or push.
+- Evidence: docs/UX_UI_AUDIT.md, docs/RESPONSIVE_TEST_MATRIX.md, docs/evidence/UX_BROWSER_TEST_SUMMARY.json, UX_CANDIDATE_V2.json, UX_REVIEW_REGRESSION.json, UX_PRIVACY_VERIFICATION.json, UX_FINAL_INVENTORY.json. Detailed screenshot paths in matrix; no passwords/tokens/cookies in tracked evidence.
+
+## Fresh runtime restoration and verification — 2026-10-29
+
+**Local runtime RESTORED; tested Demo browser/API/PostgreSQL behavior PASS; overall DEMO_PARTIAL pending physical mobile keyboard UAT.** This fresh run supersedes runtime-unavailable statements for the current Local/Demo stacks. Docker CLI was installed per-user but absent from PATH; sandbox pipe access was denied, while system-approved Windows Host execution succeeded. No Docker installation/context change was needed.
+
+The current Engine had no PartShelf containers or named volumes. Existing Dockerfiles/Compose rebuilt both stacks. PostgreSQL identity and zero public tables were checked before initializing each empty database. This is a new baseline in the current Engine, not recovery of historical Demo records. Demo reused private credentials, provisioned25 products and3 accounts; after marked QA/browser/import fixtures it contains28 products. Local partshelf remains0 users/0 products. Existing shared-test-db was untouched.
+
+Fresh results:45 live API checks;10 unique real Browser scenarios;440 layout checks (330 route-role-viewport,99 expanded states,11 login layouts). All final checks PASS; two initial label harness failures retained, corrected and rerun.18 axe scans observed zero violations. Browser XLSX import/confirm/replay/export and OpenSpout parsing27 exported rows passed; actual PNG create/replace/render passed. SQL confirms stocks13/8/3 for marked test products, separate attempts,3 corrections, zero negative balances and no duplicate SKUs. No application bug confirmed or source behavior changed. Unit/integration suites and standalone lint/build commands were not rerun. Physical mobile keyboard/camera/scanner/printer/PWA install remain NOT_VERIFIED.
+
+Use Demo http://127.0.0.1:5177 (API8084/DB5443) for owner.demo/manager.demo/staff.demo. Local http://127.0.0.1:5175 (API8083/DB5442) is the initialized empty shop. All three actual Browser logins, refreshes and logouts passed. Secrets remain private. No cloud/Staging/Production changes; DP03 stays IN_PROGRESS. Detailed role matrix, boundaries, Host commands and evidence: FULL_SYSTEM_VERIFICATION.md and docs/evidence/RESTORE_*. Screenshots/private batch reports: D:\git\PartShelf\.local\restore-verification. Next action: required physical mobile UAT; do not mark full acceptance DONE.
+
+## Latest Cloud Demo preparation — 2026-10-29
+
+**BLOCKED before cloud release:** Owner authorized latest Demo to the existing Vercel Preview/Staging project. Created codex/cloud-demo-20261029; GitHub main and base remain f8839e171725ebdfe33dffb0139b580fb5dc7ccd. Frozen120-file latest runtime candidate V2 hash6f00beff1dd0ff205ae3d739c83484d03c0439aec24d1b5fbb2ebe559b0d0ea0; no old DP03 payload substituted.
+
+Cloud Demo preparation adds Preview-only username-login gates for dedicated schema/role, active provisioning identity checks and DB_SCHEMA configuration; .local now excluded from Vercel uploads. Review1 found DB_URL override gap; regression failed before correction. Review2 ACCEPTS preparation only, same assurance unit2/3 calls consumed. Local full81/410 and final focused5/14 PASS; Pint, frontend lint/TS/build PASS. Initial full-suite invocation inherited local APP_ENV and failed10; corrected explicit testing invocation passes, initial output retained.
+
+Fresh read-only Neon confirms DP03 stock14.125/4movements/2attempts and existing data retained. Current partshelf_runtime has no schema/database CREATE privilege; admin credential is absent. Await Owner's protected .local/cloud-demo/neon-admin-url.txt to prepare isolated partshelf_demo schema and dedicated runtime role. Do not seed shared public tables. R2 bucket metadata PASS: APAC/private, no customdomains, old DP03 CORS origin retained. Vercel exact project/team, older staging READY and original Production placeholder unchanged;30 Sensitive Preview vars/Production0 confirmed.
+
+No cloud schema/role/accounts/data/env/CORS/alias write or new deployment occurred. Latest-cloud Login/stock/Excel/R2/QR/responsive remain NOT_VERIFIED. DP03 stays IN_PROGRESS. Handover and next steps: CLOUD_DEMO_HANDOVER.md. This is source preparation, not delivered Cloud Demo readiness.
+
+Publication update: GitHub repository is public. Auto-review rejected the combined push command before execution; public Source-only push approval requested separately. Source14cd8d7 remains Local; no remote branch publication claimed. Cloud release also remains blocked on scoped Neon administrator access.

@@ -1,0 +1,73 @@
+{
+  "date": "2026-10-29 Asia/Bangkok",
+  "mode": "READ ONLY",
+  "account": "604dcc43369dc5b9d8dede5d08422280",
+  "bucket": "partshelf-staging-files",
+  "checks": [
+    {
+      "resource": "bucket",
+      "status": 200,
+      "success": true,
+      "result": {
+        "name": "partshelf-staging-files",
+        "creation_date": "2026-10-28T04:26:50.577Z",
+        "location": "APAC",
+        "storage_class": "Standard",
+        "jurisdiction": "default"
+      },
+      "errors": []
+    },
+    {
+      "resource": "/domains/managed",
+      "status": 200,
+      "success": true,
+      "result": {
+        "enabled": false,
+        "bucketId": "2cdadd57763a4d47a15a1069b7c40f1d",
+        "domain": "pub-2cdadd57763a4d47a15a1069b7c40f1d.r2.dev"
+      },
+      "errors": []
+    },
+    {
+      "resource": "/domains/custom",
+      "status": 200,
+      "success": true,
+      "result": {
+        "domains": []
+      },
+      "errors": []
+    },
+    {
+      "resource": "/cors",
+      "status": 200,
+      "success": true,
+      "result": {
+        "rules": [
+          {
+            "id": "partshelf-staging-preview",
+            "allowed": {
+              "origins": [
+                "https://partshelf-staging-git-main-minikot88s-projects.vercel.app"
+              ],
+              "methods": [
+                "GET",
+                "PUT",
+                "HEAD"
+              ],
+              "headers": [
+                "Content-Type"
+              ]
+            },
+            "exposeHeaders": [
+              "ETag",
+              "Content-Length",
+              "Content-Type"
+            ],
+            "maxAgeSeconds": 300
+          }
+        ]
+      },
+      "errors": []
+    }
+  ]
+}
