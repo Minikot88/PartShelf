@@ -16,6 +16,7 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->statefulApi();
+        $middleware->redirectGuestsTo(fn (Request $request) => $request->is('api/*') ? null : '/');
         $middleware->prepend(PrivateResponses::class);
         $middleware->append(ProductionConfiguration::class);
         if ($proxies = env('TRUSTED_PROXIES')) {

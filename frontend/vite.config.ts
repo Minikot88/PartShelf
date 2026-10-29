@@ -9,6 +9,10 @@ export default defineConfig({
     port: 5173,
     strictPort: true,
     proxy: {
+      '/storage': {
+        target: process.env.VITE_API_PROXY_TARGET ?? 'http://api:80',
+        changeOrigin: true,
+      },
       '/api': {
         target: process.env.VITE_API_PROXY_TARGET ?? 'http://api:80',
         changeOrigin: true,

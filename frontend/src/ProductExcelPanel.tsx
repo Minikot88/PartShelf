@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { objectUpload } from './fileTransport'
+import { useUnsavedChanges } from './useUnsavedChanges'
 
 type RowPreview = { row: number; sku: string; name: string; errors: string[] }
 type Preview = { token: string; valid_count: number; error_count: number; rows: RowPreview[] }
@@ -31,11 +32,13 @@ async function saveDownload(path: string, name: string): Promise<void> {
 }
 
 export default function ProductExcelPanel() {
+  const fileInput = useRef<HTMLInputElement>(null)
   const [file, setFile] = useState<File | null>(null)
   const [preview, setPreview] = useState<Preview | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  useUnsavedChanges(!!file || !!preview)
 
   async function makePreview(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault(); setBusy(true); setError(''); setNotice(''); setPreview(null)
@@ -63,14 +66,14 @@ export default function ProductExcelPanel() {
       })
       const body = (await response.json()) as { imported_count?: number; message?: string }
       if (!response.ok) throw new Error(body.message ?? 'นำเข้าสินค้าไม่สำเร็จ')
-      setNotice(`นำเข้าสินค้า ${body.imported_count ?? 0} รายการแล้ว`); setPreview(null); setFile(null)
+      setNotice(`นำเข้าสินค้า ${body.imported_count ?? 0} รายการแล้ว`); setPreview(null); setFile(null); if (fileInput.current) fileInput.current.value = ''
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'นำเข้าสินค้าไม่สำเร็จ') }
     finally { setBusy(false) }
   }
 
   async function download(path: string, filename: string) {
     setBusy(true); setError(''); setNotice('')
-    try { await saveDownload(path, filename) } catch (cause) { setError(cause instanceof Error ? cause.message : 'ดาวน์โหลดไม่สำเร็จ') }
+    try { await saveDownload(path, filename); setNotice('เตรียมไฟล์ดาวน์โหลดแล้ว') } catch (cause) { setError(cause instanceof Error ? cause.message : 'ดาวน์โหลดไม่สำเร็จ') }
     finally { setBusy(false) }
   }
 
@@ -84,7 +87,7 @@ export default function ProductExcelPanel() {
         <button className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium disabled:opacity-60" disabled={busy} onClick={() => void download('/api/stock-counts/export', 'count-results-all.xlsx')} type="button">ส่งออกผลตรวจนับ</button>
       </div>
       <form className="mt-5 flex flex-wrap items-end gap-3" onSubmit={makePreview}>
-        <label className="text-sm font-medium">ไฟล์ Excel (.xlsx)<input accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="mt-1 block max-w-full rounded-lg border border-slate-300 p-2 text-sm" onChange={(event) => { setFile(event.target.files?.[0] ?? null); setPreview(null) }} required type="file" /></label>
+        <label className="text-sm font-medium">ไฟล์ Excel (.xlsx)<input ref={fileInput} accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="mt-1 block max-w-full rounded-lg border border-slate-300 p-2 text-sm" onChange={(event) => { setFile(event.target.files?.[0] ?? null); setPreview(null) }} required type="file" /></label>
         <button className="rounded-lg bg-blue-700 px-4 py-2.5 font-semibold text-white disabled:opacity-60" disabled={busy || !file} type="submit">{busy ? 'กำลังตรวจ…' : 'ตรวจสอบและแสดงตัวอย่าง'}</button>
       </form>
       {preview && <div className="mt-5 rounded-xl bg-slate-50 p-4">

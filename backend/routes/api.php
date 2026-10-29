@@ -10,11 +10,18 @@ use App\Http\Controllers\ProductExcelController;
 use App\Http\Controllers\StockController;
 use App\Http\Controllers\StockCountController;
 use App\Http\Controllers\StorageLocationController;
+use App\Support\DemoEnvironment;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/login', LoginController::class)->middleware('throttle:login');
+
+Route::get('/demo', function () {
+    $enabled = DemoEnvironment::enabled();
+
+    return response()->json($enabled ? ['enabled' => true, 'accounts' => ['owner' => 'owner.demo', 'manager' => 'manager.demo', 'staff' => 'staff.demo']] : ['enabled' => false]);
+});
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user', fn (Request $request) => response()->json([

@@ -5,6 +5,7 @@ process.env.PLAYWRIGHT_BROWSERS_PATH ??= resolve('node_modules/.cache/ms-playwri
 
 export default defineConfig({
   testDir: './e2e',
+  testIgnore: '**/ux/**',
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: 0,

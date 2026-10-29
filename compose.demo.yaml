@@ -1,0 +1,88 @@
+name: partshelf-demo
+
+services:
+  demo-db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: partshelf_demo
+      POSTGRES_USER: partshelf_demo
+      POSTGRES_PASSWORD: ${DEMO_DB_PASSWORD:?Run scripts/start-demo.ps1}
+    ports:
+      - "127.0.0.1:5443:5432"
+    volumes:
+      - demo_database:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U partshelf_demo -d partshelf_demo']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  demo-api:
+    image: partshelf-local-api
+    build:
+      context: ./backend
+    environment:
+      APP_ENV: local
+      APP_DEBUG: "false"
+      APP_KEY: ${DEMO_APP_KEY:?Run scripts/start-demo.ps1}
+      APP_URL: http://127.0.0.1:5177
+      DB_CONNECTION: pgsql
+      DB_HOST: demo-db
+      DB_PORT: 5432
+      DB_DATABASE: partshelf_demo
+      DB_USERNAME: partshelf_demo
+      DB_PASSWORD: ${DEMO_DB_PASSWORD:?Run scripts/start-demo.ps1}
+      DB_URL: ""
+      DB_SSLMODE: prefer
+      PARTSHELF_DEMO_ENABLED: "true"
+      FILE_TRANSPORT: multipart
+      PRODUCT_IMAGE_DISK: public
+      SESSION_COOKIE: partshelf_demo_session
+      SESSION_SECURE_COOKIE: "false"
+      SESSION_HTTP_ONLY: "true"
+      SANCTUM_STATEFUL_DOMAINS: 127.0.0.1:5177,localhost:5177,127.0.0.1:8084,localhost:8084
+      LOG_CHANNEL: stderr
+    ports:
+      - "127.0.0.1:8084:80"
+    volumes:
+      - ./backend:/var/www/html
+      - demo_vendor:/var/www/html/vendor
+      - demo_storage:/var/www/html/storage
+      - demo_bootstrap_cache:/var/www/html/bootstrap/cache
+      - ./.local/demo:/run/demo:ro
+    depends_on:
+      demo-db:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD-SHELL, 'curl -fsS http://localhost/api/health >/dev/null || exit 1']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  demo-web:
+    image: partshelf-local-frontend
+    build:
+      context: ./frontend
+    environment:
+      VITE_API_PROXY_TARGET: http://demo-api:80
+    ports:
+      - "127.0.0.1:5177:5173"
+    volumes:
+      - ./frontend:/app
+      - demo_node_modules:/app/node_modules
+    depends_on:
+      demo-api:
+        condition: service_healthy
+
+volumes:
+  demo_database:
+  demo_vendor:
+  demo_storage:
+  demo_bootstrap_cache:
+  demo_node_modules:
+
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: 10.250.251.0/24

@@ -13,6 +13,7 @@
     "backend": { "root": "backend", "runtime": "container", "entrypoint": "Dockerfile.production" }
   },
   "rewrites": [
+    { "source": "/", "destination": { "service": "frontend", "path": "/index.html" } },
     { "source": "/api/:path*", "destination": { "service": "backend" } },
     { "source": "/sanctum/:path*", "destination": { "service": "backend" } },
     { "source": "/:path*", "destination": { "service": "frontend" } }

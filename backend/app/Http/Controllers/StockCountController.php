@@ -17,6 +17,7 @@ class StockCountController extends Controller
         $counts = DB::table('stock_counts as c')
             ->leftJoin('users as u', 'u.id', '=', 'c.started_by_user_id')
             ->leftJoinSub(DB::table('stock_count_items')->select('stock_count_id', DB::raw('COUNT(*) AS item_count'))->groupBy('stock_count_id'), 'totals', fn ($join) => $join->on('totals.stock_count_id', '=', 'c.id'))
+            ->select(['c.*', 'u.name', 'totals.item_count'])
             ->orderByDesc('c.started_at')->paginate(20)
             ->through(fn ($count) => [
                 'id' => $count->id,
@@ -307,7 +308,7 @@ class StockCountController extends Controller
             ->where('i.stock_count_id', $count)
             ->when($search !== '', fn ($query) => $query->where(fn ($query) => $query->whereRaw('LOWER(p.sku) LIKE ?', ['%'.mb_strtolower($search).'%'])->orWhereRaw('LOWER(p.name) LIKE ?', ['%'.mb_strtolower($search).'%'])))
             ->orderBy('p.sku')->get([
-                'i.id', 'i.product_id', 'p.sku', 'p.name', 'p.base_unit', 'i.storage_location_id',
+                'i.id', 'i.product_id', 'p.sku', 'p.name', 'p.base_unit', 'p.image_path', 'i.storage_location_id',
                 'l.zone', 'l.shelf', 'l.level', 'l.bin', 'i.reference_quantity', 'i.reference_at',
                 'a.id as latest_attempt_id', 'a.attempt_number', 'a.counted_quantity', 'a.counted_at', 'a.counted_by_user_id',
                 'cc.id as correction_id', 'cc.quantity_delta as correction_delta', 'cc.reason as correction_reason',
@@ -326,7 +327,8 @@ class StockCountController extends Controller
 
             return [
                 'id' => (int) $item->id,
-                'product' => ['id' => (int) $item->product_id, 'sku' => $item->sku, 'name' => $item->name, 'base_unit' => $item->base_unit],
+                'product' => ['id' => (int) $item->product_id, 'sku' => $item->sku, 'name' => $item->name, 'base_unit' => $item->base_unit,
+                    'image_url' => (new Product)->forceFill(['id' => $item->product_id, 'image_path' => $item->image_path])->image_url],
                 'storage_location_id' => $item->storage_location_id === null ? null : (int) $item->storage_location_id,
                 'location' => $item->zone === null ? null : implode('-', [$item->zone, $item->shelf, $item->level, $item->bin]),
                 'reference_quantity' => $item->reference_quantity,

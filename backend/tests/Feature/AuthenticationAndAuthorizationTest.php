@@ -98,6 +98,23 @@ class AuthenticationAndAuthorizationTest extends TestCase
         $this->withHeaders($this->spaHeaders)->getJson('/api/user')->assertUnauthorized();
     }
 
+    public function test_anonymous_browser_navigation_returns_json_401_without_a_login_redirect(): void
+    {
+        $this->withHeader('Accept', 'text/html')
+            ->get('/api/user')
+            ->assertUnauthorized()
+            ->assertHeader('Content-Type', 'application/json')
+            ->assertJsonPath('message', 'Unauthenticated.')
+            ->assertHeaderMissing('Location');
+    }
+
+    public function test_anonymous_api_request_without_accept_header_returns_401(): void
+    {
+        $this->get('/api/products')
+            ->assertUnauthorized()
+            ->assertJsonPath('message', 'Unauthenticated.');
+    }
+
     public function test_only_owner_and_manager_pass_the_stock_correction_guard(): void
     {
         foreach (['owner', 'manager'] as $role) {

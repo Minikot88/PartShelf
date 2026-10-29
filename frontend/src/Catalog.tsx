@@ -1,11 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
-import StockPanel from './StockPanel'
-import ProductExcelPanel from './ProductExcelPanel'
-import StockCountPanel from './StockCountPanel'
-import ProductLabelPanel from './ProductLabelPanel'
-import DashboardPanel from './DashboardPanel'
 import { objectUpload } from './fileTransport'
+import { confirmNavigation, useUnsavedChanges } from './useUnsavedChanges'
 
 type Role = 'owner' | 'manager' | 'staff'
 
@@ -50,7 +46,7 @@ type Product = {
   fitments: Fitment[]
 }
 
-type ProductResponse = { data: Product[] }
+type ProductResponse = { data: Product[]; current_page?: number; last_page?: number; total?: number }
 type CategoryResponse = { categories: Category[] }
 type LocationResponse = { data: StorageLocation[] }
 
@@ -90,7 +86,7 @@ async function responseError(response: Response): Promise<Error> {
   return new Error('บันทึกข้อมูลไม่สำเร็จ กรุณาลองอีกครั้ง')
 }
 
-function Catalog({ role }: { role: Role }) {
+function Catalog({ role, view = 'products' }: { role: Role; view?: 'products' | 'categories' | 'locations' }) {
   const canEdit = role === 'owner' || role === 'manager'
   const [products, setProducts] = useState<Product[]>([])
   const [categories, setCategories] = useState<Category[]>([])
@@ -113,14 +109,20 @@ function Catalog({ role }: { role: Role }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [showForm, setShowForm] = useState(false)
+  const [page, setPage] = useState(1)
+  const [lastPage, setLastPage] = useState(1)
+  const originalFields = editing ? { sku: editing.sku, name: editing.name, part_number: editing.part_number ?? '', base_unit: editing.base_unit, min_stock_quantity: editing.min_stock_quantity, category_id: editing.category_id?.toString() ?? '' } : emptyProduct
+  useUnsavedChanges((view === 'products' && showForm && (JSON.stringify(fields) !== JSON.stringify(originalFields) || !!image || JSON.stringify(fitments) !== JSON.stringify(editing?.fitments ?? []))) || (view === 'products' && products.some((p) => locationSelections[p.id] !== undefined && locationSelections[p.id] !== String(p.storage_location_id ?? ''))) || (view === 'categories' && (categoryName !== (editingCategory?.name ?? '') || (!editingCategory && categoryParentId !== ''))) || (view === 'locations' && JSON.stringify(locationDraft) !== JSON.stringify(editingLocation ? { zone: editingLocation.zone, shelf: editingLocation.shelf, level: editingLocation.level, bin: editingLocation.bin } : { zone: '', shelf: '', level: '', bin: '' })))
 
   const categoryOptions = useMemo(() => categories.flatMap((category) => [
     category,
     ...(category.children ?? []),
   ]), [categories])
 
-  async function loadCatalog(term = appliedSearch, locationTerm = locationSearch) {
-    const query = term ? `?search=${encodeURIComponent(term)}` : ''
+  async function loadCatalog(term = appliedSearch, locationTerm = locationSearch, targetPage = 1) {
+    const query = `?page=${targetPage}${term ? `&search=${encodeURIComponent(term)}` : ''}`
     const locationQuery = locationTerm ? `?search=${encodeURIComponent(locationTerm)}` : ''
     const [productResponse, categoryResponse, locationResponse] = await Promise.all([
       fetch(`/api/products${query}`, { credentials: 'same-origin', headers: { Accept: 'application/json' } }),
@@ -134,6 +136,7 @@ function Catalog({ role }: { role: Role }) {
     const categoryData = (await categoryResponse.json()) as CategoryResponse
     const locationData = (await locationResponse.json()) as LocationResponse
     setProducts(productData.data)
+    setPage(productData.current_page ?? 1); setLastPage(productData.last_page ?? 1)
     setCategories(categoryData.categories)
     setLocations(locationData.data)
   }
@@ -154,16 +157,20 @@ function Catalog({ role }: { role: Role }) {
       .then(([productData, categoryData, locationData]) => {
         if (!active) return
         setProducts(productData.data)
+    setPage(productData.current_page ?? 1); setLastPage(productData.last_page ?? 1)
         setCategories(categoryData.categories)
         setLocations(locationData.data)
       })
       .catch((cause: unknown) => {
         if (active) setError(cause instanceof Error ? cause.message : 'โหลดสินค้าไม่สำเร็จ')
       })
+      .finally(() => { if (active) setLoading(false) })
     return () => { active = false }
   }, [])
 
   function editProduct(product: Product) {
+    if (!confirmNavigation()) return
+    setShowForm(true)
     setEditing(product)
     setFields({
       sku: product.sku,
@@ -180,6 +187,7 @@ function Catalog({ role }: { role: Role }) {
   }
 
   function resetProductForm() {
+    setShowForm(false)
     setEditing(null)
     setFields(emptyProduct)
     setFitments([])
@@ -349,7 +357,8 @@ function Catalog({ role }: { role: Role }) {
 
   return (
     <>
-    <section className="mx-auto max-w-6xl px-5 pb-16 sm:px-8" aria-labelledby="catalog-title">
+    <section className="mx-auto max-w-6xl px-5 pb-16 sm:px-8" aria-label={view === 'products' ? 'สินค้าและหมวดหมู่' : view === 'categories' ? 'ข้อมูลหมวดหมู่' : 'ข้อมูลตำแหน่ง'}>
+      {view === 'products' && <>
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-sm font-semibold text-blue-700">ข้อมูลสินค้า</p>
@@ -358,6 +367,7 @@ function Catalog({ role }: { role: Role }) {
         </div>
         <form className="flex w-full gap-2 sm:w-auto" onSubmit={(event) => {
           event.preventDefault()
+          if (!confirmNavigation()) return
           setAppliedSearch(search.trim())
           loadCatalog(search.trim(), locationSearch).catch((cause: unknown) => setError(cause instanceof Error ? cause.message : 'ค้นหาไม่สำเร็จ'))
         }}>
@@ -372,19 +382,23 @@ function Catalog({ role }: { role: Role }) {
           <button className="rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white" type="submit">ค้นหา</button>
         </form>
       </div>
+      {canEdit && <button className="mb-4 rounded-lg bg-blue-700 px-4 py-2 font-semibold text-white" aria-expanded={showForm} onClick={() => { if (!showForm) setShowForm(true); else if (confirmNavigation()) resetProductForm() }} type="button">{showForm ? 'ปิดฟอร์มสินค้า' : 'เพิ่มสินค้าใหม่'}</button>}
+      </>}
 
       {message && <p className="mb-4 rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-800" role="status">{message}</p>}
       {error && <p className="mb-4 rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-800" role="alert">{error}</p>}
+      {error && <button type="button" className="mb-4 rounded-lg border px-3 py-2" onClick={() => { setError(''); setLoading(true); void loadCatalog().catch((cause: unknown) => setError(cause instanceof Error ? cause.message : 'โหลดไม่สำเร็จ')).finally(() => setLoading(false)) }}>ลองใหม่</button>}
+      {loading && <p className="panel-loading" role="status">กำลังโหลดข้อมูล…</p>}
 
-      {canEdit && (
-        <div className="mb-6 grid gap-5 lg:grid-cols-[minmax(0,1.2fr)_minmax(260px,0.8fr)]">
-          <form className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm" onSubmit={saveProduct}>
+      {canEdit && (view === 'categories' || (view === 'products' && showForm)) && (
+        <div className="mb-5 grid gap-4">
+          {view === 'products' && <form className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm" onSubmit={saveProduct}>
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h3 className="font-semibold">{editing ? 'แก้ไขสินค้า' : 'เพิ่มสินค้า'}</h3>
                 <p className="mt-1 text-xs text-slate-500">กำหนด SKU, หมวดหมู่ และข้อมูลรถที่รองรับ</p>
               </div>
-              {editing && <button className="text-sm font-medium text-slate-600 underline" onClick={resetProductForm} type="button">ยกเลิก</button>}
+              {editing && <button className="text-sm font-medium text-slate-600 underline" onClick={() => { if (confirmNavigation()) resetProductForm() }} type="button">ยกเลิก</button>}
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <Field label="SKU *" value={fields.sku} onChange={(value) => setFields({ ...fields, sku: value })} required />
@@ -427,11 +441,11 @@ function Catalog({ role }: { role: Role }) {
                 {busy ? 'กำลังบันทึก…' : editing ? 'บันทึกการแก้ไข' : 'เพิ่มสินค้า'}
               </button>
             </div>
-          </form>
+          </form>}
 
-          <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          {view === 'categories' && <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <div>
-              <h3 className="font-semibold">จัดการหมวดหมู่</h3>
+              <h2 className="text-xl font-semibold">จัดการหมวดหมู่</h2>
               <p className="mt-1 text-xs text-slate-500">รองรับหมวดหลักและหมวดย่อยหนึ่งระดับ</p>
             </div>
             <form className="space-y-3" onSubmit={saveCategory}>
@@ -447,25 +461,25 @@ function Catalog({ role }: { role: Role }) {
               )}
               <div className="flex gap-2">
                 <button className="rounded-lg bg-slate-900 px-3.5 py-2 text-sm font-semibold text-white disabled:opacity-60" disabled={busy} type="submit">{editingCategory ? 'บันทึก' : 'เพิ่มหมวดหมู่'}</button>
-                {editingCategory && <button className="text-sm text-slate-600 underline" onClick={() => { setEditingCategory(null); setCategoryName('') }} type="button">ยกเลิก</button>}
+                {editingCategory && <button className="text-sm text-slate-600 underline" onClick={() => { if (confirmNavigation()) { setEditingCategory(null); setCategoryName('') } }} type="button">ยกเลิก</button>}
               </div>
             </form>
             <ul className="space-y-2 border-t border-slate-100 pt-3">
               {categories.map((category) => (
                 <li className="text-sm" key={category.id}>
-                  <CategoryRow category={category} onEdit={(item) => { setEditingCategory(item); setCategoryName(item.name) }} />
-                  {(category.children ?? []).map((child) => <CategoryRow category={child} key={child.id} nested onEdit={(item) => { setEditingCategory(item); setCategoryName(item.name) }} />)}
+                  <CategoryRow category={category} onEdit={(item) => { if (confirmNavigation()) { setEditingCategory(item); setCategoryName(item.name) } }} />
+                  {(category.children ?? []).map((child) => <CategoryRow category={child} key={child.id} nested onEdit={(item) => { if (confirmNavigation()) { setEditingCategory(item); setCategoryName(item.name) } }} />)}
                 </li>
               ))}
             </ul>
-          </div>
+          </div>}
         </div>
       )}
 
-      <section className="mb-8 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm" aria-labelledby="locations-title">
+      {view === 'locations' && <section className="mb-8 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm" aria-labelledby="locations-title">
         <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h3 className="font-semibold" id="locations-title">ตำแหน่งจัดเก็บ</h3>
+            <h2 className="text-xl font-semibold" id="locations-title">ตำแหน่งจัดเก็บ</h2>
             <p className="mt-1 text-xs text-slate-500">Zone → Shelf → Level → Bin · การย้ายตำแหน่งไม่เปลี่ยนยอดสต๊อก</p>
           </div>
           <form className="flex gap-2" onSubmit={(event) => {
@@ -486,7 +500,7 @@ function Catalog({ role }: { role: Role }) {
             <Field ariaLabel="Bin" placeholder="Bin" value={locationDraft.bin} onChange={(bin) => setLocationDraft({ ...locationDraft, bin })} required />
             <div className="flex gap-2">
               <button className="rounded-lg bg-blue-700 px-3 py-2 text-sm font-semibold text-white disabled:opacity-60" disabled={busy} type="submit">{editingLocation ? 'บันทึก' : 'เพิ่มตำแหน่ง'}</button>
-              {editingLocation && <button className="px-2 text-xs text-slate-600 underline" onClick={() => { setEditingLocation(null); setLocationDraft({ zone: '', shelf: '', level: '', bin: '' }) }} type="button">ยกเลิก</button>}
+              {editingLocation && <button className="px-2 text-xs text-slate-600 underline" onClick={() => { if (!confirmNavigation()) return; setEditingLocation(null); setLocationDraft({ zone: '', shelf: '', level: '', bin: '' }) }} type="button">ยกเลิก</button>}
             </div>
           </form>
         )}
@@ -504,7 +518,7 @@ function Catalog({ role }: { role: Role }) {
                   </div>
                   <div className="flex items-center gap-3">
                     <button className="text-sm font-medium text-blue-700 underline" onClick={() => showLocationProducts(location)} type="button">{expandedLocation === location.id ? 'ซ่อนสินค้า' : 'ดูสินค้า'}</button>
-                    {canEdit && <button className="text-sm text-slate-600 underline" onClick={() => { setEditingLocation(location); setLocationDraft({ zone: location.zone, shelf: location.shelf, level: location.level, bin: location.bin }) }} type="button">แก้ไข</button>}
+                    {canEdit && <button className="text-sm text-slate-600 underline" onClick={() => { if (!confirmNavigation()) return; setEditingLocation(location); setLocationDraft({ zone: location.zone, shelf: location.shelf, level: location.level, bin: location.bin }) }} type="button">แก้ไข</button>}
                   </div>
                 </div>
                 {expandedLocation === location.id && (
@@ -516,19 +530,21 @@ function Catalog({ role }: { role: Role }) {
             ))}
           </ul>
         )}
-      </section>
+      </section>}
 
+      {view === 'products' && !loading && <>
       <div className="mb-3 flex items-center justify-between">
         <h3 className="font-semibold">รายการสินค้า</h3>
         <span className="text-sm text-slate-500">{products.length} รายการในผลลัพธ์</span>
       </div>
+      {lastPage > 1 && <div className="mb-3 flex items-center gap-3" aria-label="หน้ารายการสินค้า"><button type="button" className="rounded-lg border px-3 py-2" disabled={page <= 1 || busy} onClick={() => { if (confirmNavigation()) void loadCatalog(appliedSearch, locationSearch, page - 1).catch(() => setError('โหลดหน้าสินค้าไม่สำเร็จ')) }}>ก่อนหน้า</button><span className="text-sm">หน้า {page} / {lastPage}</span><button type="button" className="rounded-lg border px-3 py-2" disabled={page >= lastPage || busy} onClick={() => { if (confirmNavigation()) void loadCatalog(appliedSearch, locationSearch, page + 1).catch(() => setError('โหลดหน้าสินค้าไม่สำเร็จ')) }}>ถัดไป</button></div>}
       {products.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center text-sm text-slate-500">ยังไม่พบสินค้า ลองค้นหาคำอื่นหรือเพิ่มสินค้าใหม่</div>
       ) : (
         <ul className="grid gap-3 md:grid-cols-2">
           {products.map((product) => (
             <li className="flex gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm" key={product.id}>
-              {product.image_url ? <img alt="" className="size-20 rounded-xl bg-slate-100 object-cover" src={product.image_url} /> : <div aria-hidden="true" className="grid size-20 shrink-0 place-items-center rounded-xl bg-blue-50 text-2xl font-semibold text-blue-700">{product.name.slice(0, 1)}</div>}
+              {product.image_url ? <img alt="" loading="lazy" decoding="async" width="56" height="56" className="size-14 shrink-0 rounded-lg bg-slate-100 object-cover" src={product.image_url} /> : <div aria-hidden="true" className="grid size-14 shrink-0 place-items-center rounded-lg bg-blue-50 text-xl font-semibold text-blue-700">{product.name.slice(0, 1)}</div>}
               <div className="min-w-0 flex-1">
                 <div className="flex items-start justify-between gap-2">
                   <div>
@@ -539,6 +555,15 @@ function Catalog({ role }: { role: Role }) {
                 </div>
                 <p className="mt-1 text-xs text-slate-600">{product.part_number ? `Part Number ${product.part_number} · ` : ''}{product.category?.name ?? 'ไม่ระบุหมวด'} · ขั้นต่ำ {product.min_stock_quantity} {product.base_unit}</p>
                 <p className="mt-1 text-xs text-slate-600">ตำแหน่ง: {product.storage_location?.path ?? 'ยังไม่กำหนด'}</p>
+                <details className="mt-2 text-sm text-slate-600">
+                  <summary className="cursor-pointer font-semibold text-blue-700">ดูรายละเอียด {product.sku}</summary>
+                  <dl className="mt-2 space-y-1 rounded-lg bg-slate-50 p-3">
+                    <div><dt className="inline font-medium">รหัสสินค้า: </dt><dd className="inline">{product.id}</dd></div>
+                    <div><dt className="inline font-medium">หน่วยนับ: </dt><dd className="inline">{product.base_unit}</dd></div>
+                    <div><dt className="inline font-medium">Part Number: </dt><dd className="inline">{product.part_number ?? 'ไม่ระบุ'}</dd></div>
+                    <div><dt className="inline font-medium">ตำแหน่งจัดเก็บ: </dt><dd className="inline">{product.storage_location?.path ?? 'ยังไม่กำหนด'}</dd></div>
+                  </dl>
+                </details>
                 {product.fitments.length > 0 && <p className="mt-2 text-xs leading-5 text-slate-600">รองรับ: {product.fitments.map((fitment) => `${fitment.make} ${fitment.model} ${fitment.year}${fitment.engine ? ` (${fitment.engine})` : ''}`).join(' · ')}</p>}
                 {canEdit && (
                   <form className="mt-3 flex flex-wrap gap-2" onSubmit={(event) => { event.preventDefault(); assignProductLocation(product) }}>
@@ -555,12 +580,8 @@ function Catalog({ role }: { role: Role }) {
           ))}
         </ul>
       )}
+      </>}
     </section>
-    <DashboardPanel />
-    <StockPanel role={role} />
-      <StockCountPanel role={role} />
-      <ProductLabelPanel />
-    {canEdit && <ProductExcelPanel />}
     </>
   )
 
@@ -593,8 +614,8 @@ function Field({
   ariaLabel?: string
 }) {
   return (
-    <label className={label ? 'block text-sm font-medium text-slate-700' : 'block'}>
-      {label}
+    <label className="block text-sm font-medium text-slate-700">
+      {label ?? ariaLabel}
       <input
         aria-label={ariaLabel}
         className={`${label ? 'mt-1.5' : ''} block w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-100`}

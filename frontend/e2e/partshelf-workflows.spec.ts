@@ -72,14 +72,16 @@ test('login, dashboard, count, stable-code resolution, labels and PWA install pr
   await expect(page.getByRole('heading', { name: 'สรุปสินค้าและสต๊อก' })).toBeVisible()
   await expect(page.getByText('ยอดคงเหลือรวม').locator('..')).toContainText('7.000')
 
+  await page.getByRole('navigation', { name: 'เมนูหลัก' }).getByRole('link', { name: 'ตรวจนับ', exact: true }).click()
   await page.getByRole('button', { name: 'เริ่มรอบตรวจนับ' }).click()
   await expect(page.getByText('เริ่มรอบตรวจนับ #7 แล้ว')).toBeVisible()
   await page.getByLabel('จำนวนที่ตรวจนับ BRAKE-PAD-01').fill('5')
   await page.getByRole('button', { name: 'บันทึกจำนวน' }).click()
   await expect(page.getByText('บันทึก BRAKE-PAD-01 แล้ว · ยอดสต๊อกไม่เปลี่ยน')).toBeVisible()
-  await expect(page.getByText('ผลต่าง -2.000').first()).toBeVisible()
+  await expect(page.locator('.count-variance')).toContainText('-2.000')
   await expect(page.getByRole('button', { name: 'ปรับยอดตามผลต่าง' })).toBeVisible()
 
+  await page.getByRole('navigation', { name: 'เมนูหลัก' }).getByRole('link', { name: 'รหัสและฉลาก', exact: true }).click()
   await page.evaluate(() => Object.defineProperty(window, 'BarcodeDetector', { configurable: true, value: undefined }))
   await page.getByRole('button', { name: 'เปิดกล้อง' }).click()
   await expect(page.getByRole('alert')).toContainText('ไม่รองรับกล้องสแกน')
@@ -105,4 +107,19 @@ test('login, dashboard, count, stable-code resolution, labels and PWA install pr
   })
   await page.getByRole('button', { name: 'ติดตั้งแอป' }).click()
   await expect.poll(() => page.evaluate(() => (window as Window & { __installPrompted?: boolean }).__installPrompted)).toBe(true)
+})
+
+test('count focus follows visible SKU order instead of numeric item ID', async ({page})=>{
+ let counted=false
+ const items=()=>[30,10,20].map((id,index)=>({id,product:{id,sku:['A-FIRST','B-SAVED','C-NEXT'][index],name:'Focus fixture',base_unit:'piece'},location:null,reference_quantity:'1.000',reference_at:'2026-10-29T00:00:00Z',counted_quantity:id===10&&counted?'1.000':null,count_status:id===10&&counted?'counted':'not_counted',variance:null,attempts:[],correction:null}))
+ await page.route('**/sanctum/csrf-cookie',r=>r.fulfill({status:204,headers:{'Set-Cookie':'XSRF-TOKEN=focus-test-token; Path=/; SameSite=Lax'}}))
+ await page.route('**/api/**',async r=>{
+  const path=new URL(r.request().url()).pathname
+  if(path==='/api/user')return r.fulfill({json:{user:{id:1,name:'Focus fixture',role:'owner',email:'focus@example.test'}}})
+  if(path==='/api/stock-counts')return r.fulfill({json:{data:[{id:7,status:'open',started_at:'2026-10-29T00:00:00Z',started_by:'Fixture',item_count:3}]}})
+  if(path==='/api/stock-counts/7/items/10/counts'){counted=true;return r.fulfill({status:201,json:{item:items()[1]}})}
+  if(path==='/api/stock-counts/7')return r.fulfill({json:{items:items()}})
+  return r.fulfill({json:{data:[]}})
+ })
+ await page.goto('/#/count');await page.getByRole('combobox',{name:'เปิดรอบเดิม',exact:true}).selectOption('7');await page.locator('#count-quantity-10').fill('1');await page.locator('#count-row-10').getByRole('button',{name:'บันทึกจำนวน',exact:true}).click();await expect(page.getByRole('status')).toContainText('ยอดสต๊อกไม่เปลี่ยน');await expect(page.locator('#count-quantity-20')).toBeFocused()
 })
