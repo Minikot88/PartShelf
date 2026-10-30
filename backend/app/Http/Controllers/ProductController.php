@@ -117,6 +117,8 @@ class ProductController extends Controller
 
         try {
             $updated = DB::transaction(function () use ($request, $product, $validated, $before, $newImagePath): Product {
+                $product = Product::query()->lockForUpdate()->findOrFail($product->id);
+                abort_if($product->archived_at, 409, 'Restore this product before editing.');
                 $product->update($this->attributes($validated, $newImagePath ?? $product->image_path, $product));
 
                 if (array_key_exists('fitments', $validated)) {
@@ -124,6 +126,7 @@ class ProductController extends Controller
                 }
 
                 $this->audit($request, 'product.updated', $product, $before);
+                $product->increment('stock_version');
 
                 return $product->fresh()->load(['category', 'fitments', 'storageLocation']);
             });
@@ -157,7 +160,10 @@ class ProductController extends Controller
 
         if ($before !== $locationId) {
             DB::transaction(function () use ($request, $product, $before, $locationId): void {
+                $product = Product::query()->lockForUpdate()->findOrFail($product->id);
+                abort_if($product->archived_at, 409, 'Restore this product before editing.');
                 $product->update(['storage_location_id' => $locationId]);
+                $product->increment('stock_version');
                 DB::table('audit_logs')->insert([
                     'user_id' => $request->user()->id,
                     'action' => 'product.location_changed',

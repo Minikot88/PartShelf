@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Services\ObjectFiles;
+use App\Services\StockNotes;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -17,7 +18,9 @@ use Throwable;
 
 class ProductExcelController extends Controller
 {
-    private const HEADERS = ['sku', 'name', 'part_number', 'base_unit', 'min_stock_quantity', 'category_name'];
+    private const LEGACY_HEADERS = ['sku', 'name', 'part_number', 'base_unit', 'min_stock_quantity', 'category_name'];
+
+    private const HEADERS = [...self::LEGACY_HEADERS, 'tracking_mode', 'quantity', 'availability_status', 'notes', 'reorder_needed', 'reorder_note'];
 
     public function template(): BinaryFileResponse|JsonResponse
     {
@@ -61,7 +64,28 @@ class ProductExcelController extends Controller
             $unit = trim((string) ($row['base_unit'] ?? ''));
             $minimum = trim((string) ($row['min_stock_quantity'] ?? ''));
             $category = trim((string) ($row['category_name'] ?? ''));
+            $mode = trim($row['tracking_mode'] ?? '') ?: 'QUANTITY';
+            $quantity = trim($row['quantity'] ?? '');
+            $availability = trim($row['availability_status'] ?? '') ?: 'UNKNOWN';
+            $notes = trim($row['notes'] ?? '');
+            $reorder = trim($row['reorder_needed'] ?? '') ?: '0';
+            $reorderNote = trim($row['reorder_note'] ?? '');
             $errors = [];
+            if (! in_array($mode, ['QUANTITY', 'AVAILABILITY_ONLY'], true)) {
+                $errors[] = 'Invalid tracking mode.';
+            }
+            if (! in_array($availability, ['IN_STOCK', 'OUT_OF_STOCK', 'UNKNOWN'], true)) {
+                $errors[] = 'Invalid availability status.';
+            }
+            if ($quantity !== '' && (! preg_match('/^\d{1,11}(?:\.\d{1,3})?$/', $quantity) || $mode !== 'QUANTITY')) {
+                $errors[] = 'Quantity must be non-negative and only belongs to QUANTITY mode.';
+            }
+            if (! in_array($reorder, ['0', '1'], true)) {
+                $errors[] = 'Reorder must be 0 or 1.';
+            }
+            if (mb_strlen($notes) > 2000 || mb_strlen($reorderNote) > 2000) {
+                $errors[] = 'Notes must be at most 2000 characters.';
+            }
             $key = mb_strtolower($sku);
 
             if ($sku === '' || mb_strlen($sku) > 100) {
@@ -95,6 +119,9 @@ class ProductExcelController extends Controller
                 'base_unit' => $unit,
                 'min_stock_quantity' => $minimum,
                 'category_name' => $category === '' ? null : $category,
+                'tracking_mode' => $mode, 'quantity' => $quantity === '' ? null : $quantity,
+                'availability_status' => $availability, 'notes' => $notes === '' ? null : $notes,
+                'reorder_needed' => $reorder === '1', 'reorder_note' => $reorderNote === '' ? null : $reorderNote,
             ];
             $preview[] = ['row' => $number, 'sku' => $sku, 'name' => $name, 'errors' => $errors];
             if ($errors === []) {
@@ -149,16 +176,25 @@ class ProductExcelController extends Controller
                         'name' => $row['category_name'], 'parent_id' => null, 'created_at' => now(), 'updated_at' => now(),
                     ]);
                 }
-                $productId = DB::table('products')->insertGetId([
+                $request->headers->set('Idempotency-Key', (string) Str::uuid());
+                $input = [
                     'sku' => $row['sku'],
                     'name' => $row['name'],
                     'part_number' => $row['part_number'],
                     'base_unit' => $row['base_unit'],
                     'min_stock_quantity' => $row['min_stock_quantity'],
                     'category_id' => $categoryId,
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ]);
+                    'tracking_mode' => $row['tracking_mode'], 'availability_status' => $row['availability_status'], 'notes' => $row['notes'],
+                ];
+                if ($row['quantity'] !== null) {
+                    $input['initial_quantity'] = $row['quantity'];
+                }
+                [$created] = app(StockNotes::class)->mutate($request, 'create', $input);
+                $productId = $created['product']['id'];
+                if ($row['reorder_needed'] || $row['reorder_note']) {
+                    $request->headers->set('Idempotency-Key', (string) Str::uuid());
+                    app(StockNotes::class)->mutate($request, 'reorder', ['expected_version' => $created['product']['stock_version'], 'reorder_needed' => $row['reorder_needed'], 'reorder_note' => $row['reorder_note']], $productId);
+                }
                 DB::table('audit_logs')->insert([
                     'user_id' => $request->user()->id,
                     'action' => 'product.imported',
@@ -180,9 +216,9 @@ class ProductExcelController extends Controller
 
     public function exportProducts(): BinaryFileResponse|JsonResponse
     {
-        $rows = DB::table('products as p')->leftJoin('categories as c', 'c.id', '=', 'p.category_id')
-            ->orderBy('p.sku')->get(['p.sku', 'p.name', 'p.part_number', 'p.base_unit', 'p.min_stock_quantity', 'c.name as category_name'])
-            ->map(fn ($product) => [$product->sku, $product->name, $product->part_number, $product->base_unit, $product->min_stock_quantity, $product->category_name])
+        $rows = DB::table('products as p')->leftJoin('categories as c', 'c.id', '=', 'p.category_id')->leftJoin('inventory_balances as b', 'b.product_id', '=', 'p.id')->whereNull('p.archived_at')
+            ->orderBy('p.sku')->get(['p.*', 'c.name as category_name', 'b.quantity'])
+            ->map(fn ($product) => [$product->sku, $product->name, $product->part_number, $product->base_unit, $product->min_stock_quantity, $product->category_name, $product->tracking_mode, $product->tracking_mode === 'QUANTITY' ? $product->quantity : null, $product->tracking_mode === 'AVAILABILITY_ONLY' ? $product->availability_status : null, $product->notes, $product->reorder_needed ? 1 : 0, $product->reorder_note])
             ->all();
         $path = $this->workbook(self::HEADERS, $rows);
 
@@ -268,14 +304,14 @@ class ProductExcelController extends Controller
                 }
             }
             $headers = array_map(fn ($value) => mb_strtolower(trim((string) $value)), array_shift($rawRows) ?? []);
-            if ($headers !== self::HEADERS) {
+            if ($headers !== self::HEADERS && $headers !== self::LEGACY_HEADERS) {
                 abort(422, 'Workbook headers must match the provided product template.');
             }
 
-            return array_values(array_filter(array_map(function (array $values): array {
-                $values = array_pad(array_slice($values, 0, count(self::HEADERS)), count(self::HEADERS), null);
+            return array_values(array_filter(array_map(function (array $values) use ($headers): array {
+                $values = array_pad(array_slice($values, 0, count($headers)), count($headers), null);
 
-                return array_combine(self::HEADERS, array_map(fn ($value) => $value === null ? '' : (string) $value, $values));
+                return array_combine($headers, array_map(fn ($value) => $value === null ? '' : (string) $value, $values));
             }, $rawRows), fn (array $values) => array_filter($values, fn ($value) => trim((string) $value) !== '') !== []));
         } catch (Throwable $exception) {
             if ($exception instanceof HttpException) {

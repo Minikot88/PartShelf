@@ -33,6 +33,8 @@ type StorageLocation = {
 type Product = {
   id: number
   sku: string
+  sku_is_generated?: boolean
+  internal_code: string
   name: string
   part_number: string | null
   base_unit: string
@@ -541,14 +543,14 @@ function Catalog({ role, view = 'products' }: { role: Role; view?: 'products' | 
       {products.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center text-sm text-slate-500">ยังไม่พบสินค้า ลองค้นหาคำอื่นหรือเพิ่มสินค้าใหม่</div>
       ) : (
-        <ul className="grid gap-3 md:grid-cols-2">
+        <ul className="grid min-w-0 grid-cols-1 gap-3 md:grid-cols-2">
           {products.map((product) => (
-            <li className="flex gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm" key={product.id}>
+            <li className="flex min-w-0 gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm" key={product.id}>
               {product.image_url ? <img alt="" loading="lazy" decoding="async" width="56" height="56" className="size-14 shrink-0 rounded-lg bg-slate-100 object-cover" src={product.image_url} /> : <div aria-hidden="true" className="grid size-14 shrink-0 place-items-center rounded-lg bg-blue-50 text-xl font-semibold text-blue-700">{product.name.slice(0, 1)}</div>}
               <div className="min-w-0 flex-1">
                 <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">{product.sku}</p>
+                  <div className="min-w-0">
+                    <p className="break-all text-xs font-semibold uppercase tracking-wide text-blue-700">{product.sku_is_generated ? product.internal_code : product.sku}</p>
                     <h4 className="mt-1 font-semibold text-slate-900">{product.name}</h4>
                   </div>
                   {canEdit && <button className="shrink-0 text-sm font-semibold text-blue-700 underline" onClick={() => editProduct(product)} type="button">แก้ไข</button>}
@@ -556,7 +558,7 @@ function Catalog({ role, view = 'products' }: { role: Role; view?: 'products' | 
                 <p className="mt-1 text-xs text-slate-600">{product.part_number ? `Part Number ${product.part_number} · ` : ''}{product.category?.name ?? 'ไม่ระบุหมวด'} · ขั้นต่ำ {product.min_stock_quantity} {product.base_unit}</p>
                 <p className="mt-1 text-xs text-slate-600">ตำแหน่ง: {product.storage_location?.path ?? 'ยังไม่กำหนด'}</p>
                 <details className="mt-2 text-sm text-slate-600">
-                  <summary className="cursor-pointer font-semibold text-blue-700">ดูรายละเอียด {product.sku}</summary>
+                  <summary className="cursor-pointer break-all font-semibold text-blue-700">ดูรายละเอียด {product.sku_is_generated ? product.internal_code : product.sku}</summary>
                   <dl className="mt-2 space-y-1 rounded-lg bg-slate-50 p-3">
                     <div><dt className="inline font-medium">รหัสสินค้า: </dt><dd className="inline">{product.id}</dd></div>
                     <div><dt className="inline font-medium">หน่วยนับ: </dt><dd className="inline">{product.base_unit}</dd></div>

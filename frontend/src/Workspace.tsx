@@ -7,10 +7,12 @@ const Stock = lazy(() => import('./StockPanel'))
 const Count = lazy(() => import('./StockCountPanel'))
 const Excel = lazy(() => import('./ProductExcelPanel'))
 const Labels = lazy(() => import('./ProductLabelPanel'))
+const StockNotes = lazy(() => import('./StockNotesPanel'))
 
 type Role = 'owner' | 'manager' | 'staff'
-type View = 'dashboard' | 'products' | 'categories' | 'locations' | 'stock' | 'count' | 'excel' | 'labels'
+type View = 'notes' | 'dashboard' | 'products' | 'categories' | 'locations' | 'stock' | 'count' | 'excel' | 'labels'
 const views: { id: View; title: string; path: string; management?: boolean }[] = [
+  { id: 'notes', title: 'สินค้าในร้าน', path: 'M3 6l9-4 9 4v12l-9 4-9-4z M3 6l9 4 9-4 M12 10v12' },
   { id: 'dashboard', title: 'ภาพรวม', path: 'M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z' },
   { id: 'count', title: 'ตรวจนับ', path: 'M8 4H5v17h14V4h-3 M9 2h6v4H9z M8 12l2 2 5-5 M8 18h8' },
   { id: 'products', title: 'สินค้า', path: 'M3 6l9-4 9 4v12l-9 4-9-4z M3 6l9 4 9-4 M12 10v12' },
@@ -22,9 +24,9 @@ const views: { id: View; title: string; path: string; management?: boolean }[] =
 ]
 const roleTitles = { owner: 'เจ้าของร้าน', manager: 'ผู้จัดการ', staff: 'พนักงาน' }
 
-function currentView(role: Role): string {
+function currentView(): string {
   if (window.location.pathname !== '/') return 'not-found'
-  return (window.location.hash.startsWith('#/') ? window.location.hash.slice(2) : '') || (role === 'staff' ? 'count' : 'dashboard')
+  return (window.location.hash.startsWith('#/') ? window.location.hash.slice(2) : '') || 'notes'
 }
 
 export default function Workspace({ user, isDemo, submitting, error, onLogout, onInstall }: {
@@ -35,7 +37,7 @@ export default function Workspace({ user, isDemo, submitting, error, onLogout, o
   onLogout: () => void
   onInstall?: () => void
 }) {
-  const [view, setView] = useState(() => currentView(user.role))
+  const [view, setView] = useState(() => currentView())
   const [collapsed, setCollapsed] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const drawer = useRef<HTMLDialogElement>(null)
@@ -48,7 +50,7 @@ export default function Workspace({ user, isDemo, submitting, error, onLogout, o
   useEffect(() => {
     const changed = () => {
       if (!window.location.hash.startsWith('#/')) return
-      const next = currentView(user.role)
+      const next = currentView()
       if (next !== view && !approvedNavigation.current && !confirmNavigation()) {
         window.history.replaceState(null, '', '/#/' + view)
         return
@@ -72,18 +74,19 @@ export default function Workspace({ user, isDemo, submitting, error, onLogout, o
   }
   function navigation(mobile: boolean) {
     return <nav aria-label={mobile ? 'เมนูมือถือ' : 'เมนูหลัก'} className="workspace-nav">
-      {links.map((item) => <a href={'/#/' + item.id} key={item.id} onClick={(event) => navigate(event, item.id)} aria-current={view === item.id ? 'page' : undefined} title={item.title}>
+      {links.filter(item => !['dashboard','count','stock','products'].includes(item.id)).map((item) => <a href={'/#/' + item.id} key={item.id} onClick={(event) => navigate(event, item.id)} aria-current={view === item.id ? 'page' : undefined} title={item.title}>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={item.path} /></svg>
         <span className={!mobile && collapsed ? 'sr-only' : ''}>{item.title}</span>
       </a>)}
+      <details className="notes-advanced"><summary>Advanced / ประวัติเดิม</summary>{links.filter(item => ['dashboard','count','stock','products'].includes(item.id)).map(item => <a href={'/#/' + item.id} key={item.id} onClick={event => navigate(event, item.id)} aria-current={view === item.id ? 'page' : undefined}>{item.id === 'products' ? 'ทะเบียนสินค้า / รูป / รถ' : item.title}</a>)}</details>
     </nav>
   }
 
   return <div className={`app-shell ${collapsed ? 'sidebar-collapsed' : ''}`}>
     <a className="skip-link" href="#workspace-content" onClick={(event) => { event.preventDefault(); document.getElementById('workspace-content')?.focus() }}>ข้ามไปเนื้อหา</a>
     <aside className="desktop-sidebar" aria-label="แถบเมนู">
-      <a className="workspace-brand" href="/#/count" onClick={(event) => navigate(event, 'count')} aria-label="PartShelf"><span aria-hidden="true">P</span>{!collapsed && <strong>PartShelf</strong>}</a>
-      {!collapsed && <p className="sidebar-caption">จัดการอะไหล่และตรวจนับ</p>}
+      <a className="workspace-brand" href="/#/notes" onClick={(event) => navigate(event, 'notes')} aria-label="PartShelf"><span aria-hidden="true">P</span>{!collapsed && <strong>PartShelf</strong>}</a>
+      {!collapsed && <p className="sidebar-caption">บันทึกอะไหล่แบบง่าย</p>}
       {navigation(false)}
       <button className="collapse-button" aria-label={collapsed ? 'ขยายเมนู' : 'ย่อเมนู'} onClick={() => setCollapsed(!collapsed)} type="button">{collapsed ? '»' : '« ย่อเมนู'}</button>
       {!collapsed && <div className="sidebar-account"><strong>{user.name}</strong><span>{roleTitles[user.role]}</span></div>}
@@ -103,6 +106,7 @@ export default function Workspace({ user, isDemo, submitting, error, onLogout, o
         {error && <p role="alert" className="mb-4 rounded-lg bg-rose-50 p-3 text-rose-800">{error}</p>}
         <Suspense fallback={<p className="panel-loading" role="status">กำลังโหลดหน้า…</p>}>
           {denied ? <section className="state-panel"><h2>ไม่มีสิทธิ์เข้าถึงหน้านี้</h2><p>บัญชีพนักงานใช้ค้นหา ดูตำแหน่ง และบันทึกตรวจนับได้</p><a href="/#/count" onClick={(event) => navigate(event, 'count')}>กลับไปตรวจนับ</a></section>
+            : view === 'notes' ? <StockNotes role={user.role} />
             : view === 'dashboard' ? <Dashboard />
             : view === 'count' ? <Count key="count" role={user.role} />
             : view === 'stock' ? <Stock role={user.role} />

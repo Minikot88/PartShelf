@@ -6,6 +6,7 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class ObjectFileTransportTest extends TestCase
@@ -40,6 +41,35 @@ class ObjectFileTransportTest extends TestCase
         $this->get("/api/products/{$id}/image")->assertRedirect()->assertHeader('Cache-Control', 'no-store, private');
         $this->postJson('/api/products', [...$fields, 'sku' => 'PRIVATE-2'])->assertUnprocessable();
         $this->assertDatabaseCount('products', 1);
+    }
+
+    public function test_stock_notes_image_retry_replays_consumed_token_without_reusing_it_for_new_writes(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $this->actingAs($owner);
+        $png = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j7qkAAAAASUVORK5CYII=');
+        $intent = $this->intent('image', $png, 'image/png');
+        Storage::disk('r2')->put($intent['object_key'], $png);
+        $key = (string) Str::uuid();
+        $fields = ['name' => 'New image retry', 'tracking_mode' => 'AVAILABILITY_ONLY', 'image_token' => $intent['token']];
+        $created = $this->withHeader('Idempotency-Key', $key)->postJson('/api/stock-notes/products', $fields)->assertCreated();
+        $this->withHeader('Idempotency-Key', $key)->postJson('/api/stock-notes/products', $fields)->assertOk()->assertJsonPath('replayed', true);
+        $this->withHeader('Idempotency-Key', (string) Str::uuid())->postJson('/api/stock-notes/products', $fields)->assertUnprocessable();
+        $this->withHeader('Idempotency-Key', $key)->postJson('/api/stock-notes/products', [...$fields, 'name' => 'Changed request'])->assertStatus(409);
+        $this->actingAs(User::factory()->create(['role' => 'manager']))->withHeader('Idempotency-Key', $key)->postJson('/api/stock-notes/products', $fields)->assertUnprocessable();
+        $this->assertDatabaseCount('products', 1);
+        $this->assertDatabaseCount('product_events', 1);
+        $this->actingAs($owner);
+        $replacement = $this->intent('image', $png, 'image/png');
+        Storage::disk('r2')->put($replacement['object_key'], $png);
+        $editKey = (string) Str::uuid();
+        $path = '/api/stock-notes/products/'.$created->json('product.id');
+        $edit = ['image_token' => $replacement['token'], 'tracking_mode' => 'QUANTITY', 'initial_quantity' => '7', 'confirm_mode_change' => true, 'reason' => 'Count and replace image', 'expected_version' => $created->json('product.stock_version')];
+        $this->withHeader('Idempotency-Key', $editKey)->patchJson($path, $edit)->assertOk()->assertJsonPath('product.quantity', '7.000');
+        $this->travel(16)->minutes();
+        $this->withHeader('Idempotency-Key', $editKey)->patchJson($path, $edit)->assertOk()->assertJsonPath('replayed', true);
+        $this->assertDatabaseCount('product_events', 2);
+        $this->assertDatabaseCount('stock_movements', 1);
     }
 
     public function test_uploaded_bytes_and_real_file_type_must_match_before_product_is_written(): void

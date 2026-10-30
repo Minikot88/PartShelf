@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Facades\Storage;
 
-#[Fillable(['sku', 'name', 'part_number', 'base_unit', 'category_id', 'storage_location_id', 'min_stock_quantity', 'image_path'])]
+#[Fillable(['sku', 'name', 'part_number', 'base_unit', 'category_id', 'storage_location_id', 'min_stock_quantity', 'image_path', 'tracking_mode', 'availability_status', 'notes', 'sku_is_generated', 'archived_at', 'reorder_needed', 'reorder_note', 'status_updated_at', 'status_updated_by', 'stock_version'])]
 class Product extends Model
 {
     protected $appends = ['image_url', 'internal_code'];
@@ -18,6 +18,11 @@ class Product extends Model
     {
         return [
             'min_stock_quantity' => 'decimal:3',
+            'sku_is_generated' => 'boolean',
+            'reorder_needed' => 'boolean',
+            'stock_version' => 'integer',
+            'archived_at' => 'immutable_datetime',
+            'status_updated_at' => 'immutable_datetime',
         ];
     }
 

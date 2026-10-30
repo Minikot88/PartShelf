@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\InventoryBalance;
 use App\Models\Product;
 use App\Models\StockMovement;
+use App\Services\StockNotes;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -20,13 +21,14 @@ class StockController extends Controller
             ->with('inventoryBalance')
             ->when($search !== '', fn ($q) => $q->where(fn ($q) => $q->whereRaw('LOWER(sku) LIKE ?', ['%'.mb_strtolower($search).'%'])->orWhereRaw('LOWER(name) LIKE ?', ['%'.mb_strtolower($search).'%'])))
             ->orderBy('sku')->paginate(25)->through(function (Product $product): array {
-                $quantity = (float) ($product->inventoryBalance?->quantity ?? 0);
+                $note = StockNotes::present($product);
+                $quantity = $note['quantity'];
                 $minimum = (float) $product->min_stock_quantity;
 
                 return [
                     'product' => $product,
-                    'quantity' => number_format($quantity, 3, '.', ''),
-                    'stock_status' => $quantity <= 0 ? 'out' : ($quantity <= $minimum ? 'low' : 'ok'),
+                    'quantity' => $quantity,
+                    'stock_status' => ['OUT_OF_STOCK' => 'out', 'LOW_STOCK' => 'low', 'IN_STOCK' => 'ok', 'UNKNOWN' => 'unknown', 'UNSET' => 'unset'][$note['stock_status']],
                 ];
             });
 
@@ -69,6 +71,7 @@ class StockController extends Controller
                 if (DB::getDriverName() === 'pgsql') {
                     DB::select('SELECT pg_advisory_xact_lock(hashtext(?))', [$key]);
                 }
+                abort_if(DB::table('product_events')->where('idempotency_key', $key)->exists(), 409, 'Idempotency key already used by Stock Notes.');
                 $existing = StockMovement::query()->where('idempotency_key', $key)->first();
                 if ($existing) {
                     if (! hash_equals((string) $existing->request_fingerprint, $fingerprint)) {
@@ -79,9 +82,11 @@ class StockController extends Controller
                 }
 
                 $product = Product::query()->lockForUpdate()->findOrFail($validated['product_id']);
+                abort_if($product->archived_at || $product->tracking_mode !== 'QUANTITY', 409, 'Product is archived or tracks availability only.');
                 $balance = InventoryBalance::query()->where('product_id', $product->id)->lockForUpdate()->first();
+                abort_if(! $balance && $type !== 'opening', 409, 'Set the initial quantity before receiving stock.');
                 $priorMovements = StockMovement::query()->where('product_id', $product->id)->exists();
-                if ($type === 'opening' && $priorMovements) {
+                if ($type === 'opening' && ($priorMovements || $balance)) {
                     abort(409, 'Opening balance has already been set or stock movements exist.');
                 }
                 if (! $balance) {
@@ -104,6 +109,8 @@ class StockController extends Controller
                     'request_fingerprint' => $fingerprint,
                 ]);
                 $balance->update(['quantity' => number_format($newMilli / 1000, 3, '.', ''), 'last_movement_at' => $now]);
+                $product->increment('stock_version');
+                $product->update(['status_updated_at' => $now, 'status_updated_by' => $request->user()->id]);
                 DB::table('audit_logs')->insert([
                     'user_id' => $request->user()->id,
                     'action' => 'stock.'.$type,

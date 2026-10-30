@@ -41,6 +41,7 @@ class ProductInternalCodeTest extends TestCase
             'created_at' => now(), 'updated_at' => now(),
         ]);
         $code = 'PS-'.str_pad((string) $productId, 8, '0', STR_PAD_LEFT);
+        DB::table('inventory_balances')->insert(['product_id' => $productId, 'quantity' => 0, 'created_at' => now(), 'updated_at' => now()]);
         $countId = $this->postJson('/api/stock-counts', [])->assertCreated()->json('count.id');
         DB::table('products')->where('id', $productId)->update(['sku' => 'COUNT-NEW']);
 

@@ -80,19 +80,15 @@ class StockCountCorrectionTest extends TestCase
             ->assertForbidden();
     }
 
-    public function test_correction_creates_missing_zero_balance_for_counted_product(): void
+    public function test_legacy_count_does_not_interpret_unset_quantity_as_zero(): void
     {
         $this->actingAs(User::factory()->create(['role' => 'manager']));
         $product = DB::table('products')->insertGetId([
             'sku' => 'CORRECT-EMPTY', 'name' => 'สินค้าไม่เคยรับเข้า', 'base_unit' => 'ชิ้น', 'min_stock_quantity' => 0,
             'created_at' => now(), 'updated_at' => now(),
         ]);
-        [$countId, $itemId] = $this->startCount($product);
-        $this->postJson("/api/stock-counts/{$countId}/items/{$itemId}/counts", ['counted_quantity' => 5])->assertCreated();
-        $this->withHeader('Idempotency-Key', 'c6c53da3-b02a-4650-906c-4f5575119630')
-            ->postJson("/api/stock-counts/{$countId}/items/{$itemId}/correction", ['reason' => 'ตรวจพบสินค้าในชั้น'])
-            ->assertCreated()->assertJsonPath('correction.balance_after', '5.000');
-        $this->assertDatabaseHas('inventory_balances', ['product_id' => $product, 'quantity' => 5]);
+        $this->postJson('/api/stock-counts', [])->assertUnprocessable();
+        $this->assertDatabaseMissing('inventory_balances', ['product_id' => $product]);
     }
 
     private function createProduct(string $sku, float $quantity): int

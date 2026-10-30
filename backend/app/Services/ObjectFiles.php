@@ -35,12 +35,15 @@ class ObjectFiles
         return (string) $client->createPresignedRequest($client->getCommand($method, $params), '+'.$seconds.' seconds')->getUri();
     }
 
-    public function consume(Request $request, string $token, string $kind, callable $callback): mixed
+    public function consume(Request $request, string $token, string $kind, callable $callback, ?callable $replay = null): mixed
     {
-        return DB::transaction(function () use ($request, $token, $kind, $callback) {
+        return DB::transaction(function () use ($request, $token, $kind, $callback, $replay) {
             $row = DB::table('file_transfers')->where('id', $token)->lockForUpdate()->first();
-            abort_unless($row && $row->kind === $kind && (int) $row->user_id === (int) $request->user()->id
-                && ! $row->consumed_at && now()->lt($row->expires_at), 422, 'Upload is expired, used or unavailable.');
+            abort_unless($row && $row->kind === $kind && (int) $row->user_id === (int) $request->user()->id, 422, 'Upload is expired, used or unavailable.');
+            if ($row->consumed_at && $replay) {
+                return $replay($row);
+            }
+            abort_unless(! $row->consumed_at && now()->lt($row->expires_at), 422, 'Upload is expired, used or unavailable.');
             $stream = Storage::disk('r2')->readStream($row->object_key);
             abort_unless(is_resource($stream), 422, 'Upload is unavailable.');
             $path = tempnam(sys_get_temp_dir(), 'partshelf-upload-');

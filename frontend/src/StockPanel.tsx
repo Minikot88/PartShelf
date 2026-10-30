@@ -3,7 +3,7 @@ import { confirmNavigation, useUnsavedChanges } from './useUnsavedChanges'
 
 type Role = 'owner' | 'manager' | 'staff'
 type Product = { id: number; sku: string; name: string; base_unit: string }
-type Balance = { product: Product; quantity: string; stock_status: 'out' | 'low' | 'ok' }
+type Balance = { product: Product; quantity: string | null; stock_status: 'out' | 'low' | 'ok' | 'unknown' | 'unset' }
 type Movement = { id: number; movement_type: string; quantity_delta: string; reason: string | null; occurred_at: string }
 
 function cookieToken(): string | undefined {
@@ -83,7 +83,7 @@ export default function StockPanel({ role }: { role: Role }) {
     finally { setBusy(false) }
   }
 
-  const statusText = { out: 'หมด', low: 'ใกล้หมด', ok: 'ปกติ' }
+  const statusText = { out: 'หมด', low: 'ใกล้หมด', ok: 'ปกติ', unknown: 'ยังไม่ทราบ', unset: 'ยังไม่กำหนดยอด' }
   return <section className="mx-auto max-w-6xl px-5 pb-12 sm:px-8" aria-labelledby="stock-title">
     <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
       <h2 className="text-2xl font-bold" id="stock-title">สต๊อกและประวัติ</h2>

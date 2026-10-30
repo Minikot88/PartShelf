@@ -15,6 +15,41 @@ class ExcelProductWorkflowTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_legacy_six_column_import_preserves_literal_zero_sku(): void
+    {
+        $this->actingAs(User::factory()->create(['role' => 'owner']));
+        $file = $this->workbook([['sku', 'name', 'part_number', 'base_unit', 'min_stock_quantity', 'category_name'], ['0', 'Zero SKU', '', 'ชิ้น', 0, '']]);
+        $token = $this->postJson('/api/products/import/preview', ['file' => $file])->assertOk()->assertJsonPath('valid_count', 1)->json('token');
+        $this->postJson('/api/products/import/confirm', ['token' => $token])->assertCreated();
+        $this->assertDatabaseHas('products', ['sku' => '0', 'sku_is_generated' => false]);
+    }
+
+    public function test_new_modes_export_blank_availability_quantity_and_import_explicit_quantities(): void
+    {
+        $this->actingAs(User::factory()->create(['role' => 'manager']));
+        $headers = ['sku', 'name', 'part_number', 'base_unit', 'min_stock_quantity', 'category_name', 'tracking_mode', 'quantity', 'availability_status', 'notes', 'reorder_needed', 'reorder_note'];
+        $file = $this->workbook([$headers,
+            ['SMART-Q', 'Quantity', '', 'ชิ้น', 2, '', 'QUANTITY', 10, '', 'หมายเหตุ', 1, 'สั่งสองแพ็ก'],
+            ['SMART-A', 'Availability', '', 'ชิ้น', 0, '', 'AVAILABILITY_ONLY', '', 'UNKNOWN', 'ยังไม่ทราบ', 0, ''],
+            ['SMART-U', 'Unset', '', 'ชิ้น', 0, '', 'QUANTITY', '', '', '', '', ''],
+            ['SMART-BAD', 'Reject fake zero', '', 'ชิ้น', 0, '', 'AVAILABILITY_ONLY', 0, 'OUT_OF_STOCK', '', '', ''],
+        ]);
+        $preview = $this->postJson('/api/products/import/preview', ['file' => $file])->assertOk()->assertJsonPath('valid_count', 3)->assertJsonPath('error_count', 1);
+        $token = $preview->json('token');
+        $this->postJson('/api/products/import/confirm', ['token' => $token])->assertCreated()->assertJsonPath('imported_count', 3);
+        $this->postJson('/api/products/import/confirm', ['token' => $token])->assertUnprocessable();
+        $this->assertDatabaseCount('inventory_balances', 1);
+        $this->assertDatabaseCount('stock_movements', 1);
+        $this->getJson('/api/stock-notes/products?search=SMART-A')->assertJsonPath('data.0.quantity', null)->assertJsonPath('data.0.stock_status', 'UNKNOWN');
+        $this->getJson('/api/stock-notes/products?search=SMART-U')->assertJsonPath('data.0.quantity', null)->assertJsonPath('data.0.stock_status', 'UNSET');
+        $rows = $this->readDownload($this->get('/api/products/export')->assertOk())[0];
+        $this->assertSame($headers, $rows[0]);
+        $availability = collect(array_slice($rows, 1))->first(fn ($row) => $row[0] === 'SMART-A');
+        $this->assertTrue($availability[7] === null || $availability[7] === '');
+        $this->assertSame('UNKNOWN', $availability[8]);
+        $this->assertDatabaseMissing('products', ['sku' => 'SMART-BAD']);
+    }
+
     public function test_excel_endpoints_require_authentication(): void
     {
         $this->getJson('/api/products/import/template')->assertUnauthorized();
@@ -31,7 +66,7 @@ class ExcelProductWorkflowTest extends TestCase
         $this->assertStringContainsString('products-template.xlsx', $response->headers->get('content-disposition'));
         $rows = $this->readDownload($response);
         $this->assertCount(1, $rows);
-        $this->assertSame(['sku', 'name', 'part_number', 'base_unit', 'min_stock_quantity', 'category_name'], $rows[0][0]);
+        $this->assertSame(['sku', 'name', 'part_number', 'base_unit', 'min_stock_quantity', 'category_name', 'tracking_mode', 'quantity', 'availability_status', 'notes', 'reorder_needed', 'reorder_note'], $rows[0][0]);
     }
 
     public function test_preview_reports_duplicate_and_invalid_rows_without_writing_then_confirm_imports_valid_rows(): void

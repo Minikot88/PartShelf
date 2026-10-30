@@ -12,10 +12,13 @@ class DashboardController extends Controller
     {
         $totals = DB::table('products as p')
             ->leftJoin('inventory_balances as b', 'b.product_id', '=', 'p.id')
+            ->whereNull('p.archived_at')
             ->selectRaw('COUNT(p.id) AS product_count')
-            ->selectRaw('COALESCE(SUM(COALESCE(b.quantity, 0)), 0) AS total_on_hand')
-            ->selectRaw('SUM(CASE WHEN COALESCE(b.quantity, 0) > 0 AND COALESCE(b.quantity, 0) <= p.min_stock_quantity THEN 1 ELSE 0 END) AS low_stock_count')
-            ->selectRaw('SUM(CASE WHEN COALESCE(b.quantity, 0) <= 0 THEN 1 ELSE 0 END) AS out_of_stock_count')
+            ->selectRaw("COALESCE(SUM(CASE WHEN p.tracking_mode = 'QUANTITY' THEN b.quantity END), 0) AS total_on_hand")
+            ->selectRaw("SUM(CASE WHEN p.tracking_mode = 'QUANTITY' AND b.quantity > 0 AND b.quantity <= p.min_stock_quantity THEN 1 ELSE 0 END) AS low_stock_count")
+            ->selectRaw("SUM(CASE WHEN (p.tracking_mode = 'QUANTITY' AND b.quantity = 0) OR (p.tracking_mode = 'AVAILABILITY_ONLY' AND p.availability_status = 'OUT_OF_STOCK') THEN 1 ELSE 0 END) AS out_of_stock_count")
+            ->selectRaw("SUM(CASE WHEN p.tracking_mode = 'QUANTITY' AND b.quantity IS NULL THEN 1 ELSE 0 END) AS unset_quantity_count")
+            ->selectRaw("SUM(CASE WHEN p.tracking_mode = 'AVAILABILITY_ONLY' AND p.availability_status = 'UNKNOWN' THEN 1 ELSE 0 END) AS unknown_availability_count")
             ->first();
 
         $recentCounts = DB::table('stock_counts as c')
@@ -67,6 +70,8 @@ class DashboardController extends Controller
                 'total_on_hand' => number_format((float) $totals->total_on_hand, 3, '.', ''),
                 'low_stock_count' => (int) $totals->low_stock_count,
                 'out_of_stock_count' => (int) $totals->out_of_stock_count,
+                'unset_quantity_count' => (int) $totals->unset_quantity_count,
+                'unknown_availability_count' => (int) $totals->unknown_availability_count,
             ],
             'recent_counts' => $recentCounts->values(),
             'recent_variances' => $recentVariances,

@@ -8,6 +8,7 @@ export default defineConfig({
     host: '0.0.0.0',
     port: 5173,
     strictPort: true,
+    watch: process.env.CHOKIDAR_USEPOLLING === 'true' ? { usePolling: true, interval: 500 } : undefined,
     proxy: {
       '/storage': {
         target: process.env.VITE_API_PROXY_TARGET ?? 'http://api:80',

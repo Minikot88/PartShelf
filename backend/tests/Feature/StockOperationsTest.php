@@ -74,6 +74,7 @@ class StockOperationsTest extends TestCase
     {
         $this->actingAs(User::factory()->create(['role' => 'owner']));
         $product = $this->createProduct('STOCK-003', 1);
+        DB::table('inventory_balances')->insert(['product_id' => $product, 'quantity' => 0, 'created_at' => now(), 'updated_at' => now()]);
         $key = '28bd86e8-621e-44a9-a46f-8786e544b848';
         $payload = ['product_id' => $product, 'quantity' => '1.250'];
 

@@ -1,0 +1,59 @@
+name: partshelf-simple
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: partshelf_simple
+      POSTGRES_USER: partshelf
+      POSTGRES_PASSWORD: ${SIMPLE_DB_PASSWORD:?Private Local settings required}
+    ports: ["127.0.0.1:5445:5432"]
+    volumes: [simple_database:/var/lib/postgresql/data]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U partshelf -d partshelf_simple"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+  api:
+    image: partshelf-local-api
+    environment:
+      APP_ENV: local
+      APP_DEBUG: "true"
+      APP_KEY: ${SIMPLE_APP_KEY:?Private Local key required}
+      APP_URL: http://127.0.0.1:8085
+      DB_CONNECTION: pgsql
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_DATABASE: partshelf_simple
+      DB_USERNAME: partshelf
+      DB_PASSWORD: ${SIMPLE_DB_PASSWORD:?Private Local settings required}
+      DB_URL: ""
+      DB_SCHEMA: public
+      CACHE_STORE: database
+      SESSION_DRIVER: database
+      SESSION_COOKIE: partshelf_simple_local_session
+      SANCTUM_STATEFUL_DOMAINS: 127.0.0.1:5178,localhost:5178,127.0.0.1:8085,localhost:8085
+      PARTSHELF_DEMO_ENABLED: "true"
+      LOG_CHANNEL: stderr
+    ports: ["127.0.0.1:8085:80"]
+    volumes:
+      - ./backend:/var/www/html
+      - simple_vendor:/var/www/html/vendor
+      - simple_storage:/var/www/html/storage
+      - simple_cache:/var/www/html/bootstrap/cache
+      - ./.local/smart-stock:/run/simple
+    depends_on:
+      db: {condition: service_healthy}
+  frontend:
+    image: partshelf-local-frontend
+    environment: {VITE_API_PROXY_TARGET: "http://api:80", CHOKIDAR_USEPOLLING: "true"}
+    ports: ["127.0.0.1:5178:5173"]
+    volumes:
+      - ./frontend:/app
+      - simple_node_modules:/app/node_modules
+    depends_on: [api]
+volumes:
+  simple_database:
+  simple_vendor:
+  simple_storage:
+  simple_cache:
+  simple_node_modules:

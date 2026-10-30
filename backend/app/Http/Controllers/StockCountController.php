@@ -40,6 +40,8 @@ class StockCountController extends Controller
 
         $countId = DB::transaction(function () use ($request, $locationId): int {
             $products = DB::table('products')->when($locationId, fn ($query) => $query->where('storage_location_id', $locationId))
+                ->whereNull('archived_at')->where('tracking_mode', 'QUANTITY')
+                ->whereExists(fn ($q) => $q->selectRaw('1')->from('inventory_balances')->whereColumn('inventory_balances.product_id', 'products.id'))
                 ->orderBy('id')->lockForUpdate()->get(['id', 'storage_location_id']);
             if ($products->isEmpty()) {
                 abort(422, 'No products are available for this count.');
@@ -136,6 +138,7 @@ class StockCountController extends Controller
 
             $product = DB::table('products')->where('id', $countItem->product_id)->lockForUpdate()->first();
             abort_if(! $product, 404);
+            abort_if($product->archived_at || $product->tracking_mode !== 'QUANTITY', 409, 'Product is archived or tracks availability only.');
             $movementWatermark = DB::table('stock_movements')->where('product_id', $product->id)->max('id');
             $countedAt = now();
             DB::table('stock_count_attempts')->insert([
@@ -178,6 +181,7 @@ class StockCountController extends Controller
             if (DB::getDriverName() === 'pgsql') {
                 DB::select('SELECT pg_advisory_xact_lock(hashtext(?))', [$key]);
             }
+            abort_if(DB::table('product_events')->where('idempotency_key', $key)->exists(), 409, 'Idempotency key already used by Stock Notes.');
             $existing = DB::table('stock_count_corrections')->where('idempotency_key', $key)->first();
             $fingerprint = hash('sha256', json_encode(['count-correction', $count, $item, $reason], JSON_THROW_ON_ERROR));
             if ($existing) {
@@ -199,7 +203,9 @@ class StockCountController extends Controller
             abort_if($correctionExists, 409, 'The latest attempt has already been corrected. Recount before another correction.');
 
             $product = Product::query()->lockForUpdate()->findOrFail($countItem->product_id);
+            abort_if($product->archived_at || $product->tracking_mode !== 'QUANTITY', 409, 'Product is archived or tracks availability only.');
             $balance = InventoryBalance::query()->where('product_id', $product->id)->lockForUpdate()->first();
+            abort_if(! $balance, 409, 'Set an explicit initial quantity first.');
             if (! $balance) {
                 $balance = InventoryBalance::query()->create(['product_id' => $product->id, 'quantity' => '0.000']);
             }
@@ -229,6 +235,8 @@ class StockCountController extends Controller
                     'request_fingerprint' => $fingerprint,
                 ]);
                 $balance->update(['quantity' => number_format($afterMilli / 1000, 3, '.', ''), 'last_movement_at' => $now]);
+                $product->increment('stock_version');
+                $product->update(['status_updated_at' => $now, 'status_updated_by' => $request->user()->id]);
             }
 
             $correctionId = DB::table('stock_count_corrections')->insertGetId([

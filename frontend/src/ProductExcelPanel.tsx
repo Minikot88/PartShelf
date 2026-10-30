@@ -80,7 +80,7 @@ export default function ProductExcelPanel() {
   return <section className="mx-auto max-w-6xl px-5 pb-12 sm:px-8" aria-labelledby="excel-title">
     <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
       <h2 className="text-2xl font-bold" id="excel-title">นำเข้าและส่งออก Excel</h2>
-      <p className="mt-1 text-sm text-slate-600">ใช้แม่แบบสินค้าแบบชีตเดียว ตรวจแถวและรายการซ้ำก่อนยืนยันนำเข้า</p>
+      <p className="mt-1 text-sm text-slate-600">ใช้แม่แบบสินค้าแบบชีตเดียว ตรวจแถวและรายการซ้ำก่อนยืนยันนำเข้า รองรับ QUANTITY / AVAILABILITY_ONLY ช่อง quantity ว่างคือยังไม่กำหนดยอด และสินค้าติดตามสถานะต้องเว้น quantity ว่าง ใช้สถานะ IN_STOCK / OUT_OF_STOCK / UNKNOWN และ reorder_needed เป็น 0 หรือ 1 ยังอ่านไฟล์เดิม 6 คอลัมน์ได้ ไม่เขียนทับ SKU เดิม</p>
       <div className="mt-4 flex flex-wrap gap-2">
         <button className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium disabled:opacity-60" disabled={busy} onClick={() => void download('/api/products/import/template', 'products-template.xlsx')} type="button">ดาวน์โหลดแม่แบบ</button>
         <button className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium disabled:opacity-60" disabled={busy} onClick={() => void download('/api/products/export', 'products.xlsx')} type="button">ส่งออกสินค้า</button>

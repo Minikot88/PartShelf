@@ -9,6 +9,7 @@ use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProductExcelController;
 use App\Http\Controllers\StockController;
 use App\Http\Controllers\StockCountController;
+use App\Http\Controllers\StockNotesController;
 use App\Http\Controllers\StorageLocationController;
 use App\Support\DemoEnvironment;
 use Illuminate\Http\Request;
@@ -24,6 +25,11 @@ Route::get('/demo', function () {
 });
 
 Route::middleware('auth:sanctum')->group(function () {
+    Route::get('/stock-notes/products', [StockNotesController::class, 'index']);
+    Route::get('/stock-notes/products/{product}/history', [StockNotesController::class, 'history']);
+    Route::post('/stock-notes/products', [StockNotesController::class, 'store']);
+    Route::patch('/stock-notes/products/{product}', [StockNotesController::class, 'update']);
+    Route::post('/stock-notes/products/{product}/actions', [StockNotesController::class, 'action']);
     Route::get('/user', fn (Request $request) => response()->json([
         'user' => $request->user()->only(['id', 'name', 'email', 'role']),
     ]));
