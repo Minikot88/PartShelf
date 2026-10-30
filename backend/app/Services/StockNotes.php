@@ -107,7 +107,10 @@ class StockNotes
             if (array_key_exists('fitments', $data)) {
                 $product->fitments()->delete();
                 foreach ($data['fitments'] as $fitment) {
-                    $product->fitments()->create($fitment);
+                    $product->fitments()->create([
+                        ...$fitment,
+                        'engine' => trim((string) ($fitment['engine'] ?? '')),
+                    ]);
                 }
             }
             if ($request->hasFile('image')) {

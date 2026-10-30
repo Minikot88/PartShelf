@@ -239,4 +239,27 @@ class SmartStockNotesTest extends TestCase
         $this->withHeader('Idempotency-Key', $key)->postJson('/api/stock-notes/products', $payload)->assertOk()->assertJsonPath('replayed', true);
         $this->withHeader('Idempotency-Key', (string) Str::uuid())->postJson('/api/stock-notes/products', $payload)->assertUnprocessable();
     }
+
+    public function test_optional_fitment_engine_accepts_blank_null_and_missing_on_create_and_edit(): void
+    {
+        $this->owner();
+        foreach ([[], ['engine' => null], ['engine' => ''], ['engine' => '  1NZ-FE  ']] as $optional) {
+            $fitment = ['make' => 'Toyota', 'model' => 'Vios', 'year' => 2020] + $optional;
+            $expected = trim((string) ($optional['engine'] ?? ''));
+            $key = (string) Str::uuid();
+            $payload = ['name' => 'Optional engine', 'tracking_mode' => 'QUANTITY', 'initial_quantity' => '10', 'fitments' => [$fitment]];
+            $product = $this->withHeader('Idempotency-Key', $key)->postJson('/api/stock-notes/products', $payload)
+                ->assertCreated()->assertJsonPath('product.fitments.0.engine', $expected)->json('product');
+            $this->withHeader('Idempotency-Key', $key)->postJson('/api/stock-notes/products', $payload)
+                ->assertOk()->assertJsonPath('replayed', true);
+            $this->withHeader('Idempotency-Key', (string) Str::uuid())->patchJson('/api/stock-notes/products/'.$product['id'], [
+                'expected_version' => $product['stock_version'], 'fitments' => [$fitment],
+            ])->assertOk()->assertJsonPath('product.fitments.0.engine', $expected);
+            $this->assertDatabaseHas('product_fitments', ['product_id' => $product['id'], 'engine' => $expected]);
+        }
+        $this->assertDatabaseCount('products', 4);
+        $this->assertDatabaseCount('product_fitments', 4);
+        $this->assertDatabaseCount('stock_movements', 4);
+        $this->assertDatabaseCount('product_events', 8);
+    }
 }
